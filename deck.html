@@ -46,12 +46,33 @@
       display: flex !important;
     }
     .card-base {
-      background: #18181B;
-      border: 1px solid #27272A;
+      background: linear-gradient(180deg, #1C1C20 0%, #151518 100%);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .card-base:hover {
+      border-color: rgba(255, 255, 255, 0.14);
     }
     .card-highlight {
-      background: #18181B;
-      border: 1px solid rgba(235, 16, 0, 0.4);
+      background: linear-gradient(180deg, #221516 0%, #171214 100%);
+      border: 1px solid rgba(235, 16, 0, 0.45);
+      box-shadow: 0 4px 24px -2px rgba(235, 16, 0, 0.15);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .card-highlight:hover {
+      border-color: rgba(235, 16, 0, 0.7);
+    }
+    /* Editorial clean typography styling */
+    h1, h2, h3 {
+      letter-spacing: -0.025em;
+    }
+    .eyebrow {
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-family: 'JetBrains Mono', monospace;
     }
     button, a {
       cursor: pointer !important;
@@ -110,7 +131,7 @@
     <!-- Slide 2: Executive Summary -->
     <section class="slide flex-col justify-center w-full" data-title="Executive Summary">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">01 / Market Opportunity</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">01 / Market Opportunity</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Bridging the Gap Between Canva and Figma</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           Most builders are caught between Canva's rigid template constraints and Figma's steep learning curve.
@@ -125,10 +146,10 @@
           </p>
         </div>
         <div class="card-highlight p-6 rounded-xl">
-          <div class="text-4xl font-extrabold text-adobe-red font-mono mb-2">M</div>
+          <div class="text-4xl font-extrabold text-adobe-red font-mono mb-2">$100M+</div>
           <div class="text-sm font-semibold text-white mb-1">Year 1 ARR Target</div>
           <p class="text-xs text-zinc-300 leading-relaxed">
-            10M free signups converting to 350K paid team seats at /month blended ARPU via product-led adoption.
+            10M free signups converting to 350K paid team seats at $25/month blended ARPU via product-led adoption.
           </p>
         </div>
         <div class="card-base p-6 rounded-xl">
@@ -144,7 +165,7 @@
     <!-- Slide 3: The Problem -->
     <section class="slide flex-col justify-center w-full" data-title="The Problem">
       <div class="mb-6">
-        <span class="text-xs font-mono text-adobe-red uppercase tracking-wider">02 / The Problem</span>
+        <span class="eyebrow text-red-400 mb-1 block">02 / The Problem</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">The Prompt Wall: Breaking Creative Flow</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           Generative AI tools produce a first draft quickly, but refining details through text prompts is slow and frustrating.
@@ -176,7 +197,7 @@
     <!-- Slide 4: The Solution -->
     <section class="slide flex-col justify-center w-full" data-title="The Solution">
       <div class="mb-6">
-        <span class="text-xs font-mono text-emerald-400 uppercase tracking-wider">03 / The Product</span>
+        <span class="eyebrow text-emerald-400 mb-1 block">03 / The Product</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Adobe Stage: AI Speed + Direct Visual Control</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           A browser canvas where generative AI creates editable elements instead of static code blocks.
@@ -209,7 +230,7 @@
     <!-- Slide 5: Market Evolution -->
     <section class="slide flex-col justify-center w-full" data-title="Market Comparison">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">04 / Competitive Landscape</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">04 / Competitive Landscape</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Competitive Comparison</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           Positioning against existing manual design tools and recent prompt-to-UI code generators.
@@ -258,7 +279,7 @@
     <!-- Slide 6: Target Personas -->
     <section class="slide flex-col justify-center w-full" data-title="Target Audience">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">05 / User Personas</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">05 / User Personas</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Target Audience</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           Addressing practical friction points for three distinct types of users.
@@ -312,7 +333,7 @@
     <!-- Slide 7: Value Architecture -->
     <section class="slide flex-col justify-center w-full" data-title="Value Architecture">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">06 / Value Drivers</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">06 / Value Drivers</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Value Architecture</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           How Stage delivers practical benefits to individual creators and team leaders.
@@ -372,7 +393,7 @@
     <!-- Slide 8: GTM Land -->
     <section class="slide flex-col justify-center w-full" data-title="GTM Land">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">07 / Go-To-Market</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">07 / Go-To-Market</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Phase 1: Land (Community-Led Acquisition)</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           Reaching early adopters through design channels, creator communities, and existing Adobe surfaces.
@@ -410,7 +431,7 @@
     <!-- Slide 9: GTM Expand -->
     <section class="slide flex-col justify-center w-full" data-title="GTM Expand">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">08 / Expansion</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">08 / Expansion</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Phase 2: Expand &amp; Monetize</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           Converting organic team usage into enterprise accounts through product signals.
@@ -443,7 +464,7 @@
     <!-- Slide 10: Compounding Growth Loop -->
     <section class="slide flex-col justify-center w-full" data-title="Growth Loop">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">09 / Flywheel</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">09 / Flywheel</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">The Product-Led Growth Loop</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           How every created project acts as an acquisition channel for new users.
@@ -499,7 +520,7 @@
     <!-- Slide 11: Pricing -->
     <section class="slide flex-col justify-center w-full" data-title="Pricing">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">10 / Pricing Model</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">10 / Pricing Model</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Pricing Architecture</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           Freemium model designed for rapid individual trial and value-based team upgrades.
@@ -509,7 +530,7 @@
         <div class="card-base p-6 rounded-xl flex flex-col justify-between">
           <div>
             <div class="text-xs font-mono text-zinc-400 uppercase mb-1">Free Tier</div>
-            <div class="text-3xl font-extrabold text-white font-mono mb-3">/bin/zsh</div>
+            <div class="text-3xl font-extrabold text-white font-mono mb-3">$0</div>
             <p class="text-xs text-zinc-400 mb-4">For individuals trying the tool and building initial prototypes.</p>
             <ul class="space-y-2 text-xs text-zinc-300">
               <li>✓ Generous monthly generation quota</li>
@@ -524,7 +545,7 @@
         <div class="card-highlight p-6 rounded-xl flex flex-col justify-between">
           <div>
             <div class="text-xs font-mono text-adobe-red uppercase mb-1">Team Pro</div>
-            <div class="text-3xl font-extrabold text-white font-mono mb-3"> <span class="text-xs font-normal text-zinc-400">/seat/mo</span></div>
+            <div class="text-3xl font-extrabold text-white font-mono mb-3">$25 <span class="text-xs font-normal text-zinc-400">/seat/mo</span></div>
             <p class="text-xs text-zinc-300 mb-4">For product teams and agencies producing client work regularly.</p>
             <ul class="space-y-2 text-xs text-zinc-200">
               <li>✓ Unlimited AI generations</li>
@@ -557,7 +578,7 @@
     <!-- Slide 12: Funnel Metrics -->
     <section class="slide flex-col justify-center w-full" data-title="Funnel Metrics">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">11 / Key Metrics</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">11 / Key Metrics</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Measurement &amp; Funnel Goals</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           Core targets across awareness, product activation, and revenue.
@@ -612,7 +633,7 @@
     <!-- Slide 13: Roadmap -->
     <section class="slide flex-col justify-center w-full" data-title="Roadmap">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">12 / Product Roadmap</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">12 / Product Roadmap</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Three-Year Execution Roadmap</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           From a focused web creation tool to an extensible design platform.
@@ -657,7 +678,7 @@
     <!-- Slide 14: Hook Model -->
     <section class="slide flex-col justify-center w-full" data-title="Habit Formation">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">Appendix A / Engagement</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">Appendix A / Engagement</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Habit Formation: The Hook Model</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           How Stage builds regular engagement into daily design and product workflows.
@@ -695,7 +716,7 @@
     <!-- Slide 15: Partner Strategy -->
     <section class="slide flex-col justify-center w-full" data-title="Influencer Strategy">
       <div class="mb-6">
-        <span class="text-xs font-mono text-zinc-400 uppercase tracking-wider">Appendix B / Partner Strategy</span>
+        <span class="eyebrow text-zinc-400 mb-1 block">Appendix B / Partner Strategy</span>
         <h2 class="text-3xl md:text-4xl font-bold text-white mt-1">Partner Strategy: Technical &amp; Practical Perspectives</h2>
         <p class="text-sm text-zinc-400 mt-2 max-w-2xl">
           Communicating tool benefits to both analytical builders and fast-moving marketers.
