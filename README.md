@@ -48,7 +48,7 @@ This is the part nothing else does. Select anything on the canvas. Then:
 |---|---|
 | Move it roughly | Drag it |
 | Move it precisely | Arrow keys, or Shift + arrow for 10px steps |
-| Move it exactly | Type an X or Y into the properties panel |
+| Move it exactly | Drag the blue X or Y in the properties panel, the way you would in After Effects, or click it and type |
 | Resize it | Drag any of the four corner handles |
 | Rewrite the copy | Click the text and type. It is live on the artboard, not in a side field |
 | Recolour it | Fill swatch in the properties panel |
@@ -71,6 +71,7 @@ I would rather be honest about a prototype than oversell it, so the app itself m
 - Three app compositions (analytics dashboard, media player, catalogue) and two campaign compositions (type poster, product ad), switchable by hand from the toolbar or chosen for you by the prompt
 - Prompt to design, with real Gemini or OpenAI calls when you supply a key and deterministic archetypes when you do not
 - A generated accent colour that carries through the whole screen
+- Scrubbable numeric values, disclosure groups and keyframe affordances, modelled on Premiere's panels
 - Drag, four-corner resize, arrow-key nudge, delete
 - Inline text editing directly on the artboard
 - X / Y / W / H numeric controls, six-way alignment, fill colour

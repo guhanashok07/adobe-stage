@@ -37,6 +37,7 @@ export default function CampaignArtboard({
       top: boxes[id].y,
       transform: `translate(${doc.positions[id]?.x || 0}px, ${doc.positions[id]?.y || 0}px)`,
       zIndex: selectedId === id ? 10 : 2,
+      opacity: (doc.opacity?.[id] ?? 100) / 100,
       width: doc.sizes[id]?.w ?? boxes[id].w,
     },
   });

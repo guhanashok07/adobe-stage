@@ -87,6 +87,7 @@ export default function AppShell({
           top: el.y - board.header,
           transform: `translate(${doc.positions[id]?.x || 0}px, ${doc.positions[id]?.y || 0}px)`,
           zIndex: selectedId === id ? 10 : 1,
+          opacity: (doc.opacity?.[id] ?? 100) / 100,
           width: doc.sizes[id]?.w ?? el.w,
         },
       };

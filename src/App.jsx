@@ -34,6 +34,7 @@ export default function App() {
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(true);
+  const [focusedPanel, setFocusedPanel] = useState('canvas');
 
   const [prompt, setPrompt] = useState('');
   const [fidelity, setFidelity] = useState(80);
@@ -324,6 +325,24 @@ export default function App() {
     d.layout[workspace] === id ? d : { ...d, layout: { ...d.layout, [workspace]: id } }
   ));
 
+  const setOpacity = (value) => {
+    if (!visibleSelection) return;
+    commit((d) => ({ ...d, opacity: { ...d.opacity, [visibleSelection]: value } }));
+  };
+
+  // Clears drag, resize and nudge on the selection, matching the reset control
+  // Adobe puts on every property group.
+  const resetTransform = () => {
+    if (!visibleSelection) return;
+    commit((d) => {
+      const positions = { ...d.positions };
+      const sizes = { ...d.sizes };
+      delete positions[visibleSelection];
+      delete sizes[visibleSelection];
+      return { ...d, positions, sizes };
+    });
+  };
+
   const setTheme = (theme) => commit((d) => (d.theme === theme ? d : { ...d, theme }));
 
   const addElement = (type) => {
@@ -384,6 +403,7 @@ export default function App() {
           next.positions = {};
           next.sizes = {};
           next.fills = {};
+          next.opacity = {};
         }
         return next;
       });
@@ -563,10 +583,14 @@ export default function App() {
             )}
           </div>
 
-          <div className="h-4 w-px bg-spectrum-400 mx-1" />
+        </div>
 
-          <span className="text-[13px] text-spectrum-100 px-1">{docName}</span>
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-[3px] bg-spectrum-500 text-spectrum-100">Draft</span>
+        {/* Centred document title, Premiere style, with an edited marker. */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 pointer-events-none">
+          <span className="text-[13px] text-spectrum-50">{docName}</span>
+          {history.past.length > 0 && (
+            <span className="text-[13px] text-spectrum-200">· Edited</span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -647,12 +671,16 @@ export default function App() {
       </div>
 
       {/* ------------------------------------------------------------ Workspace */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden gap-px bg-spectrum-900">
         <aside
-          className={`border-r border-spectrum-400 bg-spectrum-700 shrink-0 overflow-hidden transition-[width] duration-200 ${
+          onMouseDown={() => setFocusedPanel('layers')}
+          className={`shrink-0 overflow-hidden transition-[width] duration-200 relative ${
             leftOpen ? 'w-[248px]' : 'w-0'
           }`}
         >
+          {focusedPanel === 'layers' && (
+            <div className="absolute inset-0 border border-accent pointer-events-none z-30" />
+          )}
           <LayersPanel doc={doc} workspace={workspace} selectedId={visibleSelection} onSelect={select} />
         </aside>
 
@@ -660,6 +688,7 @@ export default function App() {
             it. Overlaying meant the panel covered the lower third of the
             design you were editing. */}
         <main
+          onMouseDown={() => setFocusedPanel('canvas')}
           className="flex-1 bg-spectrum-900 relative overflow-hidden flex flex-col"
           style={{ backgroundImage: 'radial-gradient(#2A2A2A 1px, transparent 1px)', backgroundSize: '24px 24px' }}
         >
@@ -722,10 +751,14 @@ export default function App() {
         </main>
 
         <aside
-          className={`border-l border-spectrum-400 bg-spectrum-700 shrink-0 overflow-hidden transition-[width] duration-200 ${
+          onMouseDown={() => setFocusedPanel('properties')}
+          className={`shrink-0 overflow-hidden transition-[width] duration-200 relative ${
             rightOpen ? 'w-[264px]' : 'w-0'
           }`}
         >
+          {focusedPanel === 'properties' && (
+            <div className="absolute inset-0 border border-accent pointer-events-none z-30" />
+          )}
           <PropertiesPanel
             doc={doc}
             selectedId={visibleSelection}
@@ -740,6 +773,9 @@ export default function App() {
             onFillCommit={() => applyFill(activeFill, 'commit')}
             onDelete={deleteSelection}
             onTheme={setTheme}
+            opacity={visibleSelection ? (doc.opacity?.[visibleSelection] ?? 100) : 100}
+            onOpacity={setOpacity}
+            onResetTransform={resetTransform}
           />
         </aside>
       </div>

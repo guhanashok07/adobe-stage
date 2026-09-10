@@ -1,6 +1,6 @@
 import React from 'react';
-import { Palette, Layers, Settings } from 'lucide-react';
-import { LayerItem, SectionLabel } from './primitives';
+import { Menu } from 'lucide-react';
+import { LayerItem } from './primitives';
 import { elementsFor, labelOf, layoutFor, LAYOUTS } from '../state/document';
 
 // The tree is derived from the active layout rather than hardcoded, so
@@ -34,32 +34,39 @@ export default function LayersPanel({ doc, workspace, selectedId, onSelect }) {
   const rootName = isApp ? `${LAYOUTS[layoutFor(doc, workspace)].name} Canvas` : 'Campaign Artboard';
 
   return (
-    <div className="w-[248px] h-full flex flex-col">
-      <div className="p-3 border-b border-spectrum-400 shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <SectionLabel icon={<Palette size={11} />}>Active Brand</SectionLabel>
-          <button className="p-1 rounded-[4px] text-spectrum-200/60 cursor-not-allowed" title="Brand settings (roadmap)">
-            <Settings size={12} />
+    <div className="w-[248px] h-full flex flex-col bg-spectrum-700">
+      {/* Adobe groups panels under tabs with a burger menu, rather than
+          stacking labelled sections down a sidebar. */}
+      <div className="flex items-end h-8 bg-spectrum-600 px-1 gap-0.5 shrink-0">
+        {['Layers', 'Brand', 'Assets'].map((t) => (
+          <button
+            key={t}
+            disabled={t !== 'Layers'}
+            title={t === 'Layers' ? undefined : 'Roadmap'}
+            className={`h-[26px] px-2.5 text-[11px] rounded-t-[3px] transition-colors ${
+              t === 'Layers'
+                ? 'bg-spectrum-700 text-spectrum-50'
+                : 'text-spectrum-200 cursor-not-allowed hover:text-spectrum-100'
+            }`}
+          >
+            {t}
           </button>
-        </div>
-        <div className="bg-spectrum-800 border border-spectrum-400 rounded-[4px] p-2.5">
-          <div className="text-[13px] font-medium text-spectrum-50 mb-2 truncate">
-            {doc.content.appName || 'Untitled Brand'}
-          </div>
-          <div className="flex gap-1.5">
-            {[`#${String(doc.content.accentHex || '1473E6').replace('#', '')}`, '#0F172A', '#10B981', '#FFFFFF'].map((hex, i) => (
-              <div key={i} className="w-4 h-4 rounded-full ring-1 ring-black/30" style={{ background: hex }} />
-            ))}
-          </div>
-          <div className="text-[10px] text-spectrum-200 mt-2">Source Sans 3 · Source Code Pro</div>
-        </div>
+        ))}
+        <button className="ml-auto mb-1 p-1 text-spectrum-100 hover:text-spectrum-50 transition-colors" title="Panel menu">
+          <Menu size={12} />
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3">
-        <div className="mb-2">
-          <SectionLabel icon={<Layers size={11} />}>Layers</SectionLabel>
-        </div>
+      <div className="flex items-center gap-2 h-8 px-2.5 border-b border-spectrum-400/60 shrink-0">
+        <div
+          className="w-3.5 h-3.5 rounded-[3px] shrink-0 ring-1 ring-black/40"
+          style={{ background: `#${String(doc.content.accentHex || '1473E6').replace('#', '')}` }}
+        />
+        <span className="text-[11px] text-spectrum-50 truncate">{doc.content.appName || 'Untitled'}</span>
+        <span className="ml-auto text-[10px] text-spectrum-200 shrink-0">Source Sans 3</span>
+      </div>
 
+      <div className="flex-1 overflow-y-auto py-1.5 px-1.5">
         <div className="space-y-0.5">
           <LayerItem name={rootName} type="frame" expanded>
             {isApp && <LayerItem name="App Sidebar Nav" type="group" />}

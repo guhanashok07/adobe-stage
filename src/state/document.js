@@ -130,6 +130,7 @@ export const INITIAL_DOC = {
   positions: {},
   sizes: {},
   fills: {},
+  opacity: {},
   custom: [],
 };
 

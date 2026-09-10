@@ -8,17 +8,19 @@ export default {
     extend: {
       colors: {
         // Adobe Spectrum-derived neutral scale (dark theme).
+        // Sampled against Premiere Pro: panels sit close together in value and
+        // are separated by dark gutters rather than visible borders.
         spectrum: {
-          900: '#161616', // canvas void
-          800: '#1D1D1D', // app chrome
-          700: '#232323', // panels
-          600: '#2C2C2C', // elevated surfaces
+          900: '#131313', // gutters between panels, canvas void
+          800: '#1B1B1B', // app chrome, toolbars
+          700: '#222222', // panel bodies
+          600: '#2B2B2B', // panel headers, elevated controls
           500: '#333333', // hover
-          400: '#3A3A3A', // borders
-          300: '#4A4A4A', // strong borders
-          200: '#707070', // disabled text
-          100: '#B3B3B3', // secondary text
-          50:  '#EAEAEA', // primary text
+          400: '#3C3C3C', // hairlines
+          300: '#4C4C4C', // strong borders, slider tracks
+          200: '#6E6E6E', // disabled text
+          100: '#9A9A9A', // secondary text, property labels
+          50:  '#D5D5D5', // primary text
         },
         // Spectrum blue — the single accent.
         accent: {
@@ -26,6 +28,8 @@ export default {
           hover: '#0D66D0',
           down: '#095ABA',
           subtle: '#2680EB',
+          // Adobe renders every editable number as scrubbable blue text.
+          value: '#4A9BFF',
         },
       },
       fontFamily: {
