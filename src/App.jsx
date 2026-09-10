@@ -5,7 +5,7 @@ import {
   Folder, Settings, Menu, AlignLeft, AlignCenter, AlignRight,
   Maximize, X, SlidersHorizontal, Image as ImageIcon,
   Wand2, CornerUpLeft, CornerUpRight, Check, PanelRight,
-  Minus, CreditCard, ArrowRightLeft, PieChart, Search, Bell
+  Minus, CreditCard, ArrowRightLeft, PieChart, Search, Bell, Key
 } from 'lucide-react';
 import Onboarding, { STORAGE_KEY, API_KEY_STORAGE, API_PROVIDER_STORAGE } from './components/Onboarding';
 import { generateWithAI } from './services/aiService';
@@ -34,6 +34,25 @@ const App = () => {
 
   // Dynamic Custom Elements State
   const [customElements, setCustomElements] = useState([]);
+
+  // Prototype content state (updated via AI prompts or inline direct editing)
+  const [prototypeData, setPrototypeData] = useState({
+    appName: 'AcmeBank',
+    greeting: 'Welcome back, Alex',
+    statLabel: 'Total Balance',
+    statValue: '$24,500.00',
+    ctaLabel: 'Transfer',
+    activityTitle: 'Recent Activity',
+    items: [
+      { id: 1, title: 'Apple Store', sub: 'Today, 2:45 PM', amount: '-$999' },
+      { id: 2, title: 'Upwork Inc.', sub: 'Yesterday', amount: '+$2,400' }
+    ],
+    gdBrand: 'ACME',
+    gdHeadline: 'THE FUTURE OF DIGITAL BANKING.'
+  });
+
+  // Custom Fills per element
+  const [customFills, setCustomFills] = useState({});
 
   // Onboarding & AI Config
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem(STORAGE_KEY));
@@ -118,6 +137,15 @@ const App = () => {
       if (result.ctaStyle) setCtaStyle(result.ctaStyle);
       if (result.gdStyle) setGdStyle(result.gdStyle);
 
+      // Apply prototype content if generated
+      if (result.prototype) {
+        setPrototypeData(prev => ({
+          ...prev,
+          ...result.prototype,
+          items: result.prototype.items && result.prototype.items.length > 0 ? result.prototype.items : prev.items
+        }));
+      }
+
       // Add any new elements the AI requested
       if (result.addElements && result.addElements.length > 0) {
         result.addElements.forEach(el => addElement(el.type || 'shape'));
@@ -137,21 +165,152 @@ const App = () => {
     handleGenerate(text);
   };
 
-  // Dynamic Properties based on selection, theme, and drag/resize position
+  // Base canvas offsets for coordinates calculation
+  const baseOffsets = {
+    hero: { x: 232, y: 112, w: 280, h: 190 },
+    card: { x: 536, y: 112, w: 240, h: 320 },
+    gdHeadline: { x: 40, y: 96, w: 320, h: 150 },
+    gdShape: { x: 96, y: 256, w: 192, h: 192 }
+  };
+
+  const handlePropChange = (prop, val) => {
+    if (!selectedElement) return;
+    const base = baseOffsets[selectedElement] || { x: 100, y: 100, w: 96, h: 96 };
+    if (prop === 'x') {
+      setPositions(prev => ({
+        ...prev,
+        [selectedElement]: {
+          ...(prev[selectedElement] || { x: 0, y: 0 }),
+          x: val - base.x
+        }
+      }));
+    } else if (prop === 'y') {
+      setPositions(prev => ({
+        ...prev,
+        [selectedElement]: {
+          ...(prev[selectedElement] || { x: 0, y: 0 }),
+          y: val - base.y
+        }
+      }));
+    } else if (prop === 'w') {
+      setSizes(prev => ({
+        ...prev,
+        [selectedElement]: {
+          ...(prev[selectedElement] || { w: base.w, h: base.h }),
+          w: Math.max(30, val)
+        }
+      }));
+    } else if (prop === 'h') {
+      setSizes(prev => ({
+        ...prev,
+        [selectedElement]: {
+          ...(prev[selectedElement] || { w: base.w, h: base.h }),
+          h: Math.max(30, val)
+        }
+      }));
+    }
+  };
+
+  const handleAlign = (type) => {
+    if (!selectedElement) return;
+    const base = baseOffsets[selectedElement] || { x: 100, y: 100, w: 96, h: 96 };
+    const currentW = sizes[selectedElement]?.w || base.w;
+    const currentH = sizes[selectedElement]?.h || base.h;
+    const isGd = activeWorkspace === 'Graphic Design';
+    const artboardW = isGd ? 400 : 600;
+
+    if (type === 'left') {
+      setPositions(prev => ({
+        ...prev,
+        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), x: 32 - (isGd ? 0 : 200) - (base.x - (isGd ? 0 : 200)) }
+      }));
+    } else if (type === 'center') {
+      const targetX = Math.round((artboardW - currentW) / 2);
+      setPositions(prev => ({
+        ...prev,
+        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), x: targetX - (base.x - (isGd ? 0 : 200)) }
+      }));
+    } else if (type === 'right') {
+      const targetX = artboardW - currentW - 32;
+      setPositions(prev => ({
+        ...prev,
+        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), x: targetX - (base.x - (isGd ? 0 : 200)) }
+      }));
+    } else if (type === 'top') {
+      setPositions(prev => ({
+        ...prev,
+        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), y: 32 - base.y }
+      }));
+    } else if (type === 'middle') {
+      const targetY = Math.round((480 - currentH) / 2);
+      setPositions(prev => ({
+        ...prev,
+        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), y: targetY - base.y }
+      }));
+    } else if (type === 'bottom') {
+      const targetY = 480 - currentH - 32;
+      setPositions(prev => ({
+        ...prev,
+        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), y: targetY - base.y }
+      }));
+    }
+  };
+
+  const handleFillChange = (val) => {
+    if (!selectedElement) return;
+    const cleanHex = val.replace('#', '');
+    setCustomFills(prev => ({
+      ...prev,
+      [selectedElement]: cleanHex
+    }));
+  };
+
+  // Dynamic Properties based on selection, theme, custom fills, and drag/resize
+  const defaultFillMap = {
+    hero: canvasTheme === 'light' ? '2563EB' : '1E3A8A',
+    card: canvasTheme === 'light' ? 'FFFFFF' : '1E293B',
+    gdHeadline: canvasTheme === 'light' ? '1E1B4B' : 'FFFFFF',
+    gdShape: '3B82F6'
+  };
+
   const properties = {
-    hero: { x: Math.round(232 + positions.hero.x), y: Math.round(112 + positions.hero.y), w: '280', h: '190', fill: canvasTheme === 'light' ? '2563EB' : '1E3A8A' },
-    card: { x: Math.round(536 + positions.card.x), y: Math.round(112 + positions.card.y), w: '240', h: '320', fill: canvasTheme === 'light' ? 'FFFFFF' : '1E293B' },
-    gdHeadline: { x: Math.round(40 + positions.gdHeadline.x), y: Math.round(96 + positions.gdHeadline.y), w: '320', h: '150', fill: canvasTheme === 'light' ? '1E1B4B' : 'FFFFFF' },
-    gdShape: { x: Math.round(96 + positions.gdShape.x), y: Math.round(256 + positions.gdShape.y), w: '192', h: '192', fill: '3B82F6' }
+    hero: { 
+      x: Math.round(232 + (positions.hero?.x || 0)), 
+      y: Math.round(112 + (positions.hero?.y || 0)), 
+      w: sizes.hero?.w ? Math.round(sizes.hero.w) : 280, 
+      h: sizes.hero?.h ? Math.round(sizes.hero.h) : 190, 
+      fill: customFills.hero || defaultFillMap.hero 
+    },
+    card: { 
+      x: Math.round(536 + (positions.card?.x || 0)), 
+      y: Math.round(112 + (positions.card?.y || 0)), 
+      w: sizes.card?.w ? Math.round(sizes.card.w) : 240, 
+      h: sizes.card?.h ? Math.round(sizes.card.h) : 320, 
+      fill: customFills.card || defaultFillMap.card 
+    },
+    gdHeadline: { 
+      x: Math.round(40 + (positions.gdHeadline?.x || 0)), 
+      y: Math.round(96 + (positions.gdHeadline?.y || 0)), 
+      w: sizes.gdHeadline?.w ? Math.round(sizes.gdHeadline.w) : 320, 
+      h: sizes.gdHeadline?.h ? Math.round(sizes.gdHeadline.h) : 150, 
+      fill: customFills.gdHeadline || defaultFillMap.gdHeadline 
+    },
+    gdShape: { 
+      x: Math.round(96 + (positions.gdShape?.x || 0)), 
+      y: Math.round(256 + (positions.gdShape?.y || 0)), 
+      w: sizes.gdShape?.w ? Math.round(sizes.gdShape.w) : 192, 
+      h: sizes.gdShape?.h ? Math.round(sizes.gdShape.h) : 192, 
+      fill: customFills.gdShape || defaultFillMap.gdShape 
+    }
   };
 
   // Fallback for dynamically added elements
   const activeProps = properties[selectedElement] || { 
     x: Math.round(100 + (positions[selectedElement]?.x || 0)), 
     y: Math.round(100 + (positions[selectedElement]?.y || 0)), 
-    w: sizes[selectedElement]?.w ? Math.round(sizes[selectedElement].w) : (customElements.find(e => e.id === selectedElement)?.type === 'shape' ? '96' : 'Auto'), 
-    h: sizes[selectedElement]?.h ? Math.round(sizes[selectedElement].h) : (customElements.find(e => e.id === selectedElement)?.type === 'shape' ? '96' : 'Auto'), 
-    fill: canvasTheme === 'light' ? 'E5E7EB' : '334155' 
+    w: sizes[selectedElement]?.w ? Math.round(sizes[selectedElement].w) : (customElements.find(e => e.id === selectedElement)?.type === 'shape' ? 96 : 'Auto'), 
+    h: sizes[selectedElement]?.h ? Math.round(sizes[selectedElement].h) : (customElements.find(e => e.id === selectedElement)?.type === 'shape' ? 96 : 'Auto'), 
+    fill: customFills[selectedElement] || (canvasTheme === 'light' ? 'E5E7EB' : '334155') 
   };
 
   return (
@@ -227,6 +386,18 @@ const App = () => {
             <div className="w-7 h-7 rounded-full bg-blue-500 border-2 border-[#252525] flex items-center justify-center text-xs text-white font-medium z-20 shadow-sm">JD</div>
             <div className="w-7 h-7 rounded-full bg-emerald-500 border-2 border-[#252525] flex items-center justify-center text-xs text-white font-medium z-10 shadow-sm">AL</div>
           </div>
+          
+          <div className="h-4 w-px bg-[#444444] mx-1"></div>
+
+          {/* Guide & API Key trigger */}
+          <button 
+            onClick={() => setShowOnboarding(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#333333] hover:bg-[#3f3f3f] text-xs font-medium text-gray-200 transition-colors border border-[#444444]"
+            title="Open Instructions and API Key Settings"
+          >
+            <Key size={12} className={aiApiKey ? "text-green-400" : "text-yellow-400"} />
+            <span>Guide & Key</span>
+          </button>
           
           <div className="h-4 w-px bg-[#444444] mx-1"></div>
           
@@ -349,7 +520,14 @@ const App = () => {
               <div className={`w-[200px] border-r flex flex-col p-5 transition-colors duration-700 z-10 ${canvasTheme === 'dark' ? 'border-[#1e293b] bg-[#1e293b]/50' : 'border-gray-200 bg-white'}`}>
                 <div className="font-bold text-xl flex items-center gap-2 mb-8">
                   <div className={`w-6 h-6 rounded-md ${canvasTheme === 'dark' ? 'bg-blue-500' : 'bg-blue-600'}`}></div>
-                  <span className={`transition-colors ${canvasTheme === 'dark' ? 'text-white' : 'text-gray-900'}`}>AcmeBank</span>
+                  <span 
+                    className={`transition-colors outline-none cursor-text ${canvasTheme === 'dark' ? 'text-white' : 'text-gray-900'}`}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onBlur={(e) => setPrototypeData(p => ({ ...p, appName: e.target.innerText }))}
+                  >
+                    {prototypeData.appName}
+                  </span>
                 </div>
                 
                 <div className="space-y-1">
@@ -399,8 +577,9 @@ const App = () => {
                     className={`text-2xl font-bold mb-6 transition-colors outline-none cursor-text ${canvasTheme === 'dark' ? 'text-white' : 'text-gray-900'}`}
                     contentEditable
                     suppressContentEditableWarning
+                    onBlur={(e) => setPrototypeData(p => ({ ...p, greeting: e.target.innerText }))}
                   >
-                    Welcome back, Alex
+                    {prototypeData.greeting}
                   </h1>
                   
                   {/* Left Column: Balance Widget (Draggable ID: hero) */}
@@ -429,7 +608,14 @@ const App = () => {
                     </div>
 
                     {/* Actual Widget Content */}
-                    <div className={`w-[280px] p-6 rounded-2xl shadow-xl transition-all duration-700 text-white overflow-hidden relative ${canvasTheme === 'dark' ? 'bg-gradient-to-br from-blue-800 to-indigo-900' : 'bg-gradient-to-br from-blue-600 to-blue-800'}`}>
+                    <div 
+                      className={`p-6 rounded-2xl shadow-xl transition-all duration-700 text-white overflow-hidden relative ${customFills.hero ? '' : (canvasTheme === 'dark' ? 'bg-gradient-to-br from-blue-800 to-indigo-900' : 'bg-gradient-to-br from-blue-600 to-blue-800')}`}
+                      style={{
+                        width: sizes.hero?.w ? `${sizes.hero.w}px` : '280px',
+                        height: sizes.hero?.h ? `${sizes.hero.h}px` : undefined,
+                        backgroundColor: customFills.hero ? `#${customFills.hero}` : undefined
+                      }}
+                    >
                       <div className="absolute -right-10 -top-10 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
                       
                       {/* Editable Text */}
@@ -437,20 +623,22 @@ const App = () => {
                         className="text-blue-100 text-sm font-medium mb-1 relative z-10 outline-none cursor-text" 
                         contentEditable 
                         suppressContentEditableWarning
+                        onBlur={(e) => setPrototypeData(p => ({ ...p, statLabel: e.target.innerText }))}
                       >
-                        Total Balance
+                        {prototypeData.statLabel}
                       </div>
                       <div 
                         className="text-3xl font-bold mb-6 relative z-10 outline-none cursor-text" 
                         contentEditable 
                         suppressContentEditableWarning
+                        onBlur={(e) => setPrototypeData(p => ({ ...p, statValue: e.target.innerText }))}
                       >
-                        $24,500.00
+                        {prototypeData.statValue}
                       </div>
                       
                       <div className="flex gap-3 relative z-10 pointer-events-none">
                         {/* Dynamic CTA Button */}
-                        <button className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-all duration-700 shadow-md ${ctaStyle === 'black' ? 'bg-[#000000] text-white shadow-black/20' : 'bg-white text-blue-900 shadow-white/10'}`}>Transfer</button>
+                        <button className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-all duration-700 shadow-md ${ctaStyle === 'black' ? 'bg-[#000000] text-white shadow-black/20' : 'bg-white text-blue-900 shadow-white/10'}`}>{prototypeData.ctaLabel}</button>
                         <button className="p-2 rounded-lg bg-white/20 text-white backdrop-blur-sm"><ArrowRightLeft size={16} /></button>
                       </div>
                     </div>
@@ -482,34 +670,78 @@ const App = () => {
                     </div>
 
                     {/* Actual Widget Content */}
-                    <div className={`w-[240px] p-5 rounded-xl border shadow-sm transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-[#1e293b] border-[#334155]' : 'bg-white border-gray-200'}`}>
+                    <div 
+                      className={`p-5 rounded-xl border shadow-sm transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-[#1e293b] border-[#334155]' : 'bg-white border-gray-200'}`}
+                      style={{
+                        width: sizes.card?.w ? `${sizes.card.w}px` : '240px',
+                        height: sizes.card?.h ? `${sizes.card.h}px` : undefined,
+                        backgroundColor: customFills.card ? `#${customFills.card}` : undefined
+                      }}
+                    >
                       <h3 
                         className={`font-bold mb-4 text-sm outline-none cursor-text ${canvasTheme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}
                         contentEditable suppressContentEditableWarning
+                        onBlur={(e) => setPrototypeData(p => ({ ...p, activityTitle: e.target.innerText }))}
                       >
-                        Recent Activity
+                        {prototypeData.activityTitle}
                       </h3>
-                      <div className="space-y-4 pointer-events-none">
-                        <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-3">
-                             <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center"><CreditCard size={14}/></div>
-                             <div>
-                               <div className={`text-xs font-bold ${canvasTheme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>Apple Store</div>
-                               <div className={`text-[10px] ${canvasTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Today, 2:45 PM</div>
-                             </div>
-                           </div>
-                           <div className={`text-xs font-bold ${canvasTheme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>-$999</div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-3">
-                             <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center"><PieChart size={14}/></div>
-                             <div>
-                               <div className={`text-xs font-bold ${canvasTheme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>Upwork Inc.</div>
-                               <div className={`text-[10px] ${canvasTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Yesterday</div>
-                             </div>
-                           </div>
-                           <div className="text-xs font-bold text-green-500">+$2,400</div>
-                        </div>
+                      <div className="space-y-4">
+                        {(prototypeData.items || []).map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${idx % 2 === 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                {idx % 2 === 0 ? <CreditCard size={14}/> : <PieChart size={14}/>}
+                              </div>
+                              <div>
+                                <div 
+                                  className={`text-xs font-bold outline-none cursor-text ${canvasTheme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onBlur={(e) => {
+                                    const val = e.target.innerText;
+                                    setPrototypeData(p => {
+                                      const newItems = [...p.items];
+                                      if (newItems[idx]) newItems[idx] = { ...newItems[idx], title: val };
+                                      return { ...p, items: newItems };
+                                    });
+                                  }}
+                                >
+                                  {item.title}
+                                </div>
+                                <div 
+                                  className={`text-[10px] outline-none cursor-text ${canvasTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onBlur={(e) => {
+                                    const val = e.target.innerText;
+                                    setPrototypeData(p => {
+                                      const newItems = [...p.items];
+                                      if (newItems[idx]) newItems[idx] = { ...newItems[idx], sub: val };
+                                      return { ...p, items: newItems };
+                                    });
+                                  }}
+                                >
+                                  {item.sub}
+                                </div>
+                              </div>
+                            </div>
+                            <div 
+                              className={`text-xs font-bold outline-none cursor-text ${String(item.amount).includes('-') ? (canvasTheme === 'dark' ? 'text-gray-300' : 'text-gray-800') : 'text-green-500'}`}
+                              contentEditable
+                              suppressContentEditableWarning
+                              onBlur={(e) => {
+                                const val = e.target.innerText;
+                                setPrototypeData(p => {
+                                  const newItems = [...p.items];
+                                  if (newItems[idx]) newItems[idx] = { ...newItems[idx], amount: val };
+                                  return { ...p, items: newItems };
+                                });
+                              }}
+                            >
+                              {item.amount}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -592,12 +824,12 @@ const App = () => {
               {/* Brand Logo */}
               <div className="absolute top-6 left-6 flex items-center gap-2 pointer-events-none z-10">
                  <div className={`w-6 h-6 rounded-md transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-white' : 'bg-indigo-600'}`}></div>
-                 <span className={`font-bold text-sm transition-colors duration-700 ${canvasTheme === 'dark' ? 'text-white' : 'text-indigo-900'}`}>ACME</span>
+                 <span className={`font-bold text-sm transition-colors duration-700 ${canvasTheme === 'dark' ? 'text-white' : 'text-indigo-900'}`}>{prototypeData.gdBrand || 'ACME'}</span>
               </div>
 
               {/* Headline Text (Draggable) */}
               <div 
-                className={`absolute left-10 top-24 w-[320px] group ${draggingId === 'gdHeadline' ? 'cursor-grabbing' : 'cursor-grab'}`}
+                className={`absolute left-10 top-24 group ${draggingId === 'gdHeadline' ? 'cursor-grabbing' : 'cursor-grab'}`}
                 onClick={(e) => { e.stopPropagation(); setSelectedElement('gdHeadline'); }}
                 onMouseDown={(e) => { 
                   e.stopPropagation(); 
@@ -605,7 +837,11 @@ const App = () => {
                   if (e.target.closest('[contenteditable="true"]')) return;
                   setDraggingId('gdHeadline'); 
                 }}
-                style={{ transform: `translate(${positions.gdHeadline.x}px, ${positions.gdHeadline.y}px)`, zIndex: selectedElement === 'gdHeadline' ? 10 : 2 }}
+                style={{ 
+                  width: sizes.gdHeadline?.w ? `${sizes.gdHeadline.w}px` : '320px',
+                  transform: `translate(${positions.gdHeadline.x}px, ${positions.gdHeadline.y}px)`, 
+                  zIndex: selectedElement === 'gdHeadline' ? 10 : 2 
+                }}
               >
                 <div className={`absolute inset-0 border-2 rounded pointer-events-none -m-2 transition-all duration-200 ${selectedElement === 'gdHeadline' ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
                   {selectedElement === 'gdHeadline' && (
@@ -620,26 +856,35 @@ const App = () => {
                 {gdStyle === 'cyberpunk' ? (
                   <h2 
                     contentEditable suppressContentEditableWarning
-                    className={`text-[42px] font-mono font-bold leading-none tracking-tighter outline-none cursor-text transition-all duration-700 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-fuchsia-500 drop-shadow-[0_0_15px_rgba(0,255,255,0.4)]`}
+                    className={`text-[42px] font-mono font-bold leading-none tracking-tighter outline-none cursor-text transition-all duration-700 ${customFills.gdHeadline ? '' : 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-fuchsia-500'} drop-shadow-[0_0_15px_rgba(0,255,255,0.4)]`}
+                    style={{ color: customFills.gdHeadline ? `#${customFills.gdHeadline}` : undefined }}
+                    onBlur={(e) => setPrototypeData(p => ({ ...p, gdHeadline: e.target.innerText }))}
                   >
-                    NEO-BANKING <br/>PROTOCOL <br/><span className="text-white drop-shadow-[0_0_10px_rgba(255,0,255,0.8)]">INITIATED_</span>
+                    {prototypeData.gdHeadline || 'NEO-BANKING PROTOCOL INITIATED_'}
                   </h2>
                 ) : (
                   <h2 
                     contentEditable suppressContentEditableWarning
-                    className={`text-5xl font-black leading-none tracking-tight outline-none cursor-text transition-colors duration-700 ${canvasTheme === 'dark' ? 'text-white' : 'text-indigo-950'}`}
+                    className={`text-5xl font-black leading-none tracking-tight outline-none cursor-text transition-colors duration-700 ${customFills.gdHeadline ? '' : (canvasTheme === 'dark' ? 'text-white' : 'text-indigo-950')}`}
+                    style={{ color: customFills.gdHeadline ? `#${customFills.gdHeadline}` : undefined }}
+                    onBlur={(e) => setPrototypeData(p => ({ ...p, gdHeadline: e.target.innerText }))}
                   >
-                    THE FUTURE <br/>OF DIGITAL <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-violet-500">BANKING.</span>
+                    {prototypeData.gdHeadline || 'THE FUTURE OF DIGITAL BANKING.'}
                   </h2>
                 )}
               </div>
 
               {/* Abstract Shape (Draggable) */}
               <div 
-                className={`absolute top-64 left-24 w-48 h-48 group ${draggingId === 'gdShape' ? 'cursor-grabbing' : 'cursor-grab'}`}
+                className={`absolute top-64 left-24 group ${draggingId === 'gdShape' ? 'cursor-grabbing' : 'cursor-grab'}`}
                 onClick={(e) => { e.stopPropagation(); setSelectedElement('gdShape'); }}
                 onMouseDown={(e) => { e.stopPropagation(); setDraggingId('gdShape'); setSelectedElement('gdShape'); }}
-                style={{ transform: `translate(${positions.gdShape.x}px, ${positions.gdShape.y}px)`, zIndex: selectedElement === 'gdShape' ? 10 : 2 }}
+                style={{ 
+                  width: sizes.gdShape?.w ? `${sizes.gdShape.w}px` : '192px',
+                  height: sizes.gdShape?.h ? `${sizes.gdShape.h}px` : '192px',
+                  transform: `translate(${positions.gdShape.x}px, ${positions.gdShape.y}px)`, 
+                  zIndex: selectedElement === 'gdShape' ? 10 : 2 
+                }}
               >
                 <div className={`absolute inset-0 border-2 rounded-xl pointer-events-none -m-2 transition-all duration-200 ${selectedElement === 'gdShape' ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
                    {selectedElement === 'gdShape' && (
@@ -650,8 +895,19 @@ const App = () => {
                     </>
                   )}
                 </div>
-                <div className={`w-full h-full rounded-2xl backdrop-blur-md border shadow-2xl flex items-center justify-center transform transition-all duration-700 pointer-events-none ${gdStyle === 'cyberpunk' ? 'bg-black/40 border-cyan-500/50 rotate-45' : 'rotate-12 border-white/20'} ${canvasTheme === 'dark' ? (gdStyle === 'cyberpunk' ? '' : 'bg-white/10') : 'bg-white/40'}`}>
-                   <div className={`w-24 h-24 rounded-full animate-pulse transition-all duration-700 ${gdStyle === 'cyberpunk' ? 'bg-gradient-to-tr from-cyan-400 to-fuchsia-500 shadow-[0_0_30px_rgba(0,255,255,0.6)] rounded-none rotate-45' : 'bg-gradient-to-tr from-blue-400 to-pink-400'}`}></div>
+                <div 
+                  className={`w-full h-full rounded-2xl backdrop-blur-md border shadow-2xl flex items-center justify-center transform transition-all duration-700 pointer-events-none ${gdStyle === 'cyberpunk' ? 'bg-black/40 border-cyan-500/50 rotate-45' : 'rotate-12 border-white/20'} ${canvasTheme === 'dark' ? (gdStyle === 'cyberpunk' ? '' : 'bg-white/10') : 'bg-white/40'}`}
+                  style={{
+                    backgroundColor: customFills.gdShape ? `#${customFills.gdShape}33` : undefined,
+                    borderColor: customFills.gdShape ? `#${customFills.gdShape}` : undefined
+                  }}
+                >
+                   <div 
+                     className={`w-24 h-24 rounded-full animate-pulse transition-all duration-700 ${gdStyle === 'cyberpunk' ? 'bg-gradient-to-tr from-cyan-400 to-fuchsia-500 shadow-[0_0_30px_rgba(0,255,255,0.6)] rounded-none rotate-45' : 'bg-gradient-to-tr from-blue-400 to-pink-400'}`}
+                     style={{
+                       background: customFills.gdShape ? `radial-gradient(circle, #${customFills.gdShape}, transparent)` : undefined
+                     }}
+                   />
                 </div>
               </div>
 
@@ -874,20 +1130,20 @@ const App = () => {
               {/* Alignment & Coordinates */}
               <section>
                 <div className="flex justify-between mb-4">
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignLeft size={16}/></button>
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignCenter size={16}/></button>
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignRight size={16}/></button>
+                  <button onClick={() => handleAlign('left')} title="Align Left" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignLeft size={16}/></button>
+                  <button onClick={() => handleAlign('center')} title="Align Center (Horizontal)" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignCenter size={16}/></button>
+                  <button onClick={() => handleAlign('right')} title="Align Right" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignRight size={16}/></button>
                   <div className="w-px h-4 bg-[#444] self-center"></div>
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignLeft size={16} className="rotate-90"/></button>
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignCenter size={16} className="rotate-90"/></button>
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignRight size={16} className="rotate-90"/></button>
+                  <button onClick={() => handleAlign('top')} title="Align Top" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignLeft size={16} className="rotate-90"/></button>
+                  <button onClick={() => handleAlign('middle')} title="Align Middle (Vertical)" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignCenter size={16} className="rotate-90"/></button>
+                  <button onClick={() => handleAlign('bottom')} title="Align Bottom" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignRight size={16} className="rotate-90"/></button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <NumberInput label="X" value={activeProps.x} />
-                  <NumberInput label="Y" value={activeProps.y} />
-                  <NumberInput label="W" value={activeProps.w} />
-                  <NumberInput label="H" value={activeProps.h} />
+                  <NumberInput label="X" value={activeProps.x} onChange={(v) => handlePropChange('x', v)} />
+                  <NumberInput label="Y" value={activeProps.y} onChange={(v) => handlePropChange('y', v)} />
+                  <NumberInput label="W" value={activeProps.w} onChange={(v) => handlePropChange('w', v)} />
+                  <NumberInput label="H" value={activeProps.h} onChange={(v) => handlePropChange('h', v)} />
                 </div>
               </section>
 
@@ -917,11 +1173,24 @@ const App = () => {
                   <button className="text-lg leading-none hover:text-white transition-colors">+</button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div 
-                    className="w-6 h-6 rounded border border-[#444] cursor-pointer transition-colors duration-700"
-                    style={{ backgroundColor: `#${activeProps.fill}` }}
-                  ></div>
-                  <span className="text-sm text-gray-200 font-mono transition-colors truncate">{activeProps.fill}</span>
+                  <label 
+                    className="relative w-6 h-6 rounded border border-[#444] cursor-pointer overflow-hidden shadow-sm shrink-0"
+                    style={{ backgroundColor: `#${String(activeProps.fill).replace('#','')}` }}
+                    title="Click to pick fill color"
+                  >
+                    <input 
+                      type="color" 
+                      value={`#${String(activeProps.fill).replace('#','')}`}
+                      onChange={(e) => handleFillChange(e.target.value)}
+                      className="opacity-0 absolute inset-0 cursor-pointer w-full h-full"
+                    />
+                  </label>
+                  <input 
+                    type="text" 
+                    value={activeProps.fill}
+                    onChange={(e) => handleFillChange(e.target.value)}
+                    className="text-sm text-gray-200 font-mono bg-transparent outline-none w-20 border-b border-transparent focus:border-blue-500"
+                  />
                   <span className="text-sm text-gray-500 ml-auto">100%</span>
                 </div>
               </section>
@@ -1004,14 +1273,15 @@ const LayerItem = ({ name, type, selected, expanded, onClick, children }) => {
   );
 };
 
-const NumberInput = ({ label, value }) => (
-  <div className="flex items-center bg-[#1e1e1e] border border-[#333333] rounded hover:border-[#555] transition-colors overflow-hidden">
-    <span className="text-xs text-gray-500 px-2 py-1 select-none">{label}</span>
+const NumberInput = ({ label, value, onChange }) => (
+  <div className="flex items-center bg-[#1e1e1e] border border-[#333333] rounded hover:border-[#555] focus-within:border-blue-500 transition-colors overflow-hidden">
+    <span className="text-xs text-gray-500 px-2 py-1 select-none w-5 shrink-0 text-center">{label}</span>
     <input 
-      type="text" 
-      value={value}
-      readOnly
-      className="bg-transparent w-full text-sm text-gray-200 outline-none py-1 pointer-events-none"
+      type="number" 
+      value={value === 'Auto' ? '' : (value ?? '')}
+      placeholder={value === 'Auto' ? 'Auto' : ''}
+      onChange={(e) => onChange && onChange(parseInt(e.target.value, 10) || 0)}
+      className="bg-transparent w-full text-sm text-gray-200 outline-none py-1 pr-1 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
     />
   </div>
 );

@@ -1,27 +1,38 @@
 // AI Service - Calls Gemini or OpenAI to interpret design prompts
 // Falls back to deterministic demo responses when no API key is provided
 
-const SYSTEM_PROMPT = `You are an AI design assistant inside "Adobe Stage", a design tool similar to Figma.
-The user is looking at a canvas with design elements. When they type a prompt, you decide what visual changes to make.
+const SYSTEM_PROMPT = `You are an AI design assistant inside "Adobe Stage", an AI-first design tool prototype.
+The user is looking at a canvas. When they give a prompt, you decide what visual changes to make to create or adapt the prototype.
 
-You MUST respond with ONLY a valid JSON object (no markdown, no explanation). The JSON schema:
+You MUST respond with ONLY a valid JSON object (no markdown formatting, no code fences, no extra text). The JSON schema:
 
 {
   "theme": "light" | "dark" | null,
   "ctaStyle": "blue" | "black" | null,
   "gdStyle": "modern" | "cyberpunk" | null,
+  "prototype": {
+    "appName": "Short brand name (e.g. AcmeBank, SoundWave, FitTrack, OrbitCrypto)",
+    "greeting": "Personalized headline (e.g. Welcome back, Alex or Today's Market Pulse)",
+    "statLabel": "Key metric label (e.g. Total Balance, Listening Time, Calories Burned)",
+    "statValue": "Key metric value (e.g. $24,500.00, 14.8 hrs, 2,340 kcal)",
+    "ctaLabel": "Action button text (e.g. Transfer, Play Now, Log Workout, Swap)",
+    "activityTitle": "Section title (e.g. Recent Activity, Top Tracks, Workout Log)",
+    "items": [
+      { "title": "Item 1 title", "sub": "Item 1 subtitle/date", "amount": "+/- metric or status" },
+      { "title": "Item 2 title", "sub": "Item 2 subtitle/date", "amount": "+/- metric or status" }
+    ],
+    "gdBrand": "Brand for graphic design (e.g. ACME, CYBER, SOUND)",
+    "gdHeadline": "Bold punchy graphic design headline (2-5 words, e.g. THE FUTURE OF DIGITAL BANKING.)"
+  },
   "addElements": [],
-  "message": "short 1-line summary of what you changed"
+  "message": "A concise 1-line note of what was created/updated"
 }
 
 Rules:
-- Set "theme" to "dark" or "light" only if the user asks to change the overall color mode. Otherwise null.
-- Set "ctaStyle" to "black" if the user wants a dark/black button. "blue" to reset. Otherwise null.
-- Set "gdStyle" to "cyberpunk" if the user wants neon/cyber/futuristic style. "modern" for clean/minimal. Otherwise null.
-- "addElements" is an array of {type: "shape"|"text"} for new elements the user requests. Usually empty.
-- "message" is a short human-readable summary.
-- Only set fields that are relevant. Use null for unchanged properties.
-- If you aren't sure what to change, make your best guess and explain in "message".`;
+- Adapt the prototype fields to whatever domain the user asked for (fintech, music, crypto, ecommerce, health, social, etc.).
+- Set "theme" to "dark" or "light" if the domain or prompt calls for it.
+- Set "gdStyle" to "cyberpunk" for tech/cyber/futuristic prompts, or "modern" otherwise.
+- Keep text concise and realistic.`;
 
 export async function generateWithAI(prompt, { apiKey, provider, workspace, selectedElement }) {
   if (!apiKey) {
@@ -115,6 +126,7 @@ function parseAIResponse(text) {
     theme: parsed.theme || null,
     ctaStyle: parsed.ctaStyle || null,
     gdStyle: parsed.gdStyle || null,
+    prototype: parsed.prototype || null,
     addElements: parsed.addElements || [],
     message: parsed.message || 'Changes applied.'
   };
@@ -126,30 +138,132 @@ function fallbackGenerate(prompt, workspace) {
     theme: null,
     ctaStyle: null,
     gdStyle: null,
+    prototype: null,
     addElements: [],
     message: ''
   };
 
-  if (lower.includes('dark mode')) {
+  // 1. Theme controls
+  if (lower.includes('dark mode') || lower.includes('dark theme')) {
     result.theme = 'dark';
     result.message = 'Switched to dark mode.';
-  } else if (lower.includes('light mode')) {
+  } else if (lower.includes('light mode') || lower.includes('light theme')) {
     result.theme = 'light';
     result.message = 'Switched to light mode.';
   }
 
-  if (lower.includes('black') || lower.includes('transfer button')) {
+  // 2. Button styles
+  if (lower.includes('black') || lower.includes('transfer button') || lower.includes('cta')) {
     result.ctaStyle = 'black';
-    result.message = (result.message ? result.message + ' ' : '') + 'Transfer button set to black.';
+    result.message = (result.message ? result.message + ' ' : '') + 'Button styled with contrast black.';
   }
 
-  if (lower.includes('cyberpunk') || lower.includes('neon')) {
+  // 3. Graphic design styles
+  if (lower.includes('cyberpunk') || lower.includes('neon') || lower.includes('matrix')) {
     result.gdStyle = 'cyberpunk';
-    result.message = (result.message ? result.message + ' ' : '') + 'Applied cyberpunk style.';
+    result.message = (result.message ? result.message + ' ' : '') + 'Applied cyberpunk neon aesthetic.';
   }
 
-  if (!result.message) {
-    result.message = 'Demo mode: Try "dark mode", "make transfer button black", or "cyberpunk style".';
+  // 4. Prototype archetypes for random prompts
+  if (lower.includes('crypto') || lower.includes('bitcoin') || lower.includes('web3') || lower.includes('wallet')) {
+    result.theme = 'dark';
+    result.prototype = {
+      appName: 'OrbitCrypto',
+      greeting: 'Portfolio Overview',
+      statLabel: 'Net Crypto Assets',
+      statValue: '₿ 4.8250 BTC',
+      ctaLabel: 'Swap Tokens',
+      activityTitle: 'Live Orders',
+      items: [
+        { title: 'Ethereum (ETH)', sub: 'Staked via Lido', amount: '+3.4% 24h' },
+        { title: 'Solana (SOL)', sub: 'Limit Order Executed', amount: '+$1,450.00' }
+      ],
+      gdBrand: 'ORBIT',
+      gdHeadline: 'DECENTRALIZED LIQUIDITY AT SCALE.'
+    };
+    result.message = 'Generated OrbitCrypto decentralized asset dashboard.';
+  } else if (lower.includes('music') || lower.includes('spotify') || lower.includes('sound') || lower.includes('song')) {
+    result.theme = 'dark';
+    result.prototype = {
+      appName: 'SoundStage',
+      greeting: 'Now Streaming',
+      statLabel: 'Total Listening Time',
+      statValue: '28.4 hrs this week',
+      ctaLabel: 'Play Mix',
+      activityTitle: 'Heavy Rotation',
+      items: [
+        { title: 'Midnight City (Remix)', sub: 'M83 • Electronic', amount: '▶ 1.2M' },
+        { title: 'Starry Night', sub: 'Peggy Gou • House', amount: '▶ 850k' }
+      ],
+      gdBrand: 'SOUND',
+      gdHeadline: 'HEAR THE NEXT WAVE IN HI-FI.'
+    };
+    result.message = 'Generated SoundStage audio streaming prototype.';
+  } else if (lower.includes('fitness') || lower.includes('gym') || lower.includes('workout') || lower.includes('health')) {
+    result.prototype = {
+      appName: 'PulseFit',
+      greeting: 'Morning Session, Alex',
+      statLabel: 'Active Calories',
+      statValue: '1,840 kcal',
+      ctaLabel: 'Start Workout',
+      activityTitle: 'Today’s Milestones',
+      items: [
+        { title: '5km Interval Run', sub: 'Pace: 4:45/km • Outdoors', amount: '320 kcal' },
+        { title: 'Upper Body Hypertrophy', sub: 'Completed 5/5 sets', amount: '45 mins' }
+      ],
+      gdBrand: 'PULSE',
+      gdHeadline: 'PEAK HUMAN PERFORMANCE.'
+    };
+    result.message = 'Generated PulseFit health & metrics tracking prototype.';
+  } else if (lower.includes('ecommerce') || lower.includes('store') || lower.includes('shop') || lower.includes('cart')) {
+    result.prototype = {
+      appName: 'AuraMarket',
+      greeting: 'Store Revenue Today',
+      statLabel: 'Gross Merchandise Val',
+      statValue: '$18,920.50',
+      ctaLabel: 'View Orders',
+      activityTitle: 'Recent Orders',
+      items: [
+        { title: 'Minimalist Wool Coat (M)', sub: 'Express Shipping • Tokyo', amount: '+$380' },
+        { title: 'Mechanical Keyboard v2', sub: 'Order #4892 • Paid', amount: '+$210' }
+      ],
+      gdBrand: 'AURA',
+      gdHeadline: 'CURATED LUXURY COMMERCE.'
+    };
+    result.message = 'Generated AuraMarket merchant dashboard prototype.';
+  } else if (lower.includes('saas') || lower.includes('analytics') || lower.includes('cloud') || lower.includes('metrics')) {
+    result.prototype = {
+      appName: 'CloudMetrics',
+      greeting: 'Production Cluster #04',
+      statLabel: 'Monthly Recurring Rev',
+      statValue: '$84,120 ARR',
+      ctaLabel: 'Deploy v2.4',
+      activityTitle: 'Recent Deployments',
+      items: [
+        { title: 'Auth-Service API', sub: 'Lat: 18ms • 99.99% uptime', amount: 'Passed' },
+        { title: 'Vector Ingestion Pipeline', sub: 'Processed 2.4M chunks', amount: 'Healthy' }
+      ],
+      gdBrand: 'METRICS',
+      gdHeadline: 'OBSERVABILITY FOR SCALE.'
+    };
+    result.message = 'Generated CloudMetrics infrastructure prototype.';
+  } else if (!result.message) {
+    // Generic fallback archetype for any other prompt
+    result.prototype = {
+      appName: 'StageApp',
+      greeting: 'Prototype Preview',
+      statLabel: 'Key Metric Output',
+      statValue: '99.4% Complete',
+      ctaLabel: 'Proceed',
+      activityTitle: 'System Events',
+      items: [
+        { title: 'Generated from user prompt', sub: `Input: "${prompt.slice(0, 24)}"`, amount: 'Live' },
+        { title: 'Direct manipulation ready', sub: 'Click, drag, resize, or inspect', amount: 'Ready' }
+      ],
+      gdBrand: 'STAGE',
+      gdHeadline: prompt.length > 3 ? prompt.toUpperCase().slice(0, 32) : 'CREATIVE INTELLIGENCE UNLEASHED.'
+    };
+    result.message = `Generated custom prototype for "${prompt.slice(0, 30)}".`;
   }
 
   return result;
