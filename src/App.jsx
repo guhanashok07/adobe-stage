@@ -7,19 +7,21 @@ import {
 
 import Onboarding, { STORAGE_KEY, API_KEY_STORAGE, API_PROVIDER_STORAGE, API_MODEL_STORAGE } from './components/Onboarding';
 import { generateWithAI, DEFAULT_MODELS } from './services/aiService';
-import UIUXArtboard from './components/UIUXArtboard';
-import GraphicArtboard from './components/GraphicArtboard';
+import AppShell from './components/artboards/AppShell';
+import CampaignArtboard from './components/artboards/CampaignArtboard';
 import LayersPanel from './components/LayersPanel';
 import PropertiesPanel from './components/PropertiesPanel';
 import AIPanel from './components/AIPanel';
 import { ToolButton } from './components/primitives';
+import GhostDemo, { DEMO_SEEN_KEY } from './components/GhostDemo';
 import {
-  ARTBOARDS, CANVAS_SCALE, ELEMENTS, initialHistory, historyReducer,
+  ARTBOARDS, CANVAS_SCALE, LAYOUTS, LAYOUTS_FOR, DEFAULT_LAYOUT,
+  initialHistory, historyReducer, layoutFor, elementsFor,
   baseOf, geometryOf, labelOf,
 } from './state/document';
 
 const WORKSPACES = ['UI/UX Design', 'Graphic Design'];
-const DEFAULT_SELECTION = { 'UI/UX Design': 'hero', 'Graphic Design': 'gdHeadline' };
+const HERO_SELECTION = { 'UI/UX Design': 'hero', 'Graphic Design': 'gdHeadline' };
 
 export default function App() {
   const [history, dispatch] = useReducer(historyReducer, initialHistory);
@@ -42,6 +44,7 @@ export default function App() {
   const [crossSurface, setCrossSurface] = useState(false);
 
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem(STORAGE_KEY));
+  const [ghost, setGhost] = useState(false);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) || '');
   const [provider, setProvider] = useState(() => localStorage.getItem(API_PROVIDER_STORAGE) || 'gemini');
   const [model, setModel] = useState(() => localStorage.getItem(API_MODEL_STORAGE) || '');
@@ -81,6 +84,13 @@ export default function App() {
     return () => observer.disconnect();
   }, [workspace, aiOpen]);
 
+  useEffect(() => {
+    if (showOnboarding) return;
+    if (localStorage.getItem(DEMO_SEEN_KEY)) return;
+    const t = setTimeout(() => setGhost(true), 700);
+    return () => clearTimeout(t);
+  }, [showOnboarding]);
+
   const commit = useCallback((updater) => dispatch({ type: 'commit', updater }), []);
   const amend = useCallback((updater) => dispatch({ type: 'amend', updater }), []);
   const begin = useCallback(() => dispatch({ type: 'begin' }), []);
@@ -91,31 +101,41 @@ export default function App() {
 
   const switchWorkspace = useCallback((ws) => {
     setWorkspace(ws);
-    setSelectedId(DEFAULT_SELECTION[ws]);
+    setSelectedId(HERO_SELECTION[ws]);
     setWorkspaceMenu(false);
     setCrossSurface(false);
   }, []);
 
   // Keep the selection on the surface you are actually looking at.
+  // A selection only survives if the active layout actually contains it.
   const visibleSelection = useMemo(() => {
     if (!selectedId) return null;
-    if (ELEMENTS[selectedId]) return ELEMENTS[selectedId].ws === workspace ? selectedId : null;
+    if (elementsFor(doc, workspace)[selectedId]) return selectedId;
     const el = doc.custom.find((e) => e.id === selectedId);
     return el && el.ws === workspace ? selectedId : null;
-  }, [selectedId, workspace, doc.custom]);
+  }, [selectedId, workspace, doc]);
 
   const geometry = visibleSelection
-    ? geometryOf(visibleSelection, doc)
+    ? geometryOf(visibleSelection, doc, workspace)
     : { x: 0, y: 0, w: 0, h: 0 };
+
+  const accentHex = String(doc.content.accentHex || '1473E6').replace('#', '');
 
   const defaultFill = (id) => {
     const dark = doc.theme === 'dark';
     switch (id) {
-      case 'hero': return dark ? '1E3A8A' : '1473E6';
-      case 'card': return dark ? '1E293B' : 'FFFFFF';
-      case 'gdHeadline': return dark ? 'FFFFFF' : '2E1065';
-      case 'gdShape': return '3B82F6';
-      default: return dark ? '334155' : 'E2E8F0';
+      case 'hero':
+      case 'art':
+      case 'gdShape':
+        return accentHex;
+      case 'card':
+      case 'chart':
+      case 'stats':
+        return dark ? '182234' : 'FFFFFF';
+      case 'gdHeadline':
+        return dark ? 'FFFFFF' : '0B1020';
+      default:
+        return dark ? '334155' : 'E2E8F0';
     }
   };
 
@@ -158,7 +178,7 @@ export default function App() {
     }
 
     amend((d) => {
-      const base = baseOf(g.id, d);
+      const base = baseOf(g.id, d, workspace);
       let w = d.sizes[g.id]?.w ?? base.w;
       let h = d.sizes[g.id]?.h ?? base.h;
       let shiftX = 0;
@@ -197,7 +217,7 @@ export default function App() {
   const setGeometry = (prop, value) => {
     if (!visibleSelection) return;
     const id = visibleSelection;
-    const base = baseOf(id, doc);
+    const base = baseOf(id, doc, workspace);
 
     if (prop === 'x' || prop === 'y') {
       commit((d) => ({
@@ -226,8 +246,8 @@ export default function App() {
     if (!visibleSelection) return;
     const id = visibleSelection;
     const board = ARTBOARDS[workspace];
-    const base = baseOf(id, doc);
-    const g = geometryOf(id, doc);
+    const base = baseOf(id, doc, workspace);
+    const g = geometryOf(id, doc, workspace);
 
     // The UI surface has a 200px app sidebar and a 64px header that content
     // sits inside; the graphic surface is a plain bleed artboard.
@@ -300,6 +320,10 @@ export default function App() {
       : d));
   };
 
+  const setLayout = (id) => commit((d) => (
+    d.layout[workspace] === id ? d : { ...d, layout: { ...d.layout, [workspace]: id } }
+  ));
+
   const setTheme = (theme) => commit((d) => (d.theme === theme ? d : { ...d, theme }));
 
   const addElement = (type) => {
@@ -315,10 +339,10 @@ export default function App() {
 
   const deleteSelection = useCallback(() => {
     const id = selectedId;
-    if (!id || ELEMENTS[id]) return; // primary elements are part of the template
+    if (!id || elementsFor(doc, workspace)[id]) return; // layout blocks are not deletable
     commit((d) => ({ ...d, custom: d.custom.filter((e) => e.id !== id) }));
-    setSelectedId(DEFAULT_SELECTION[workspace]);
-  }, [selectedId, workspace, commit]);
+    setSelectedId(HERO_SELECTION[workspace]);
+  }, [selectedId, workspace, commit, doc]);
 
   // --- generation ----------------------------------------------------------
 
@@ -334,7 +358,7 @@ export default function App() {
     try {
       const result = await generateWithAI(input, {
         apiKey, provider, model, workspace,
-        selectedElement: labelOf(visibleSelection, doc),
+        selectedElement: labelOf(visibleSelection, doc, workspace),
         fidelity, creativity,
       });
 
@@ -343,6 +367,12 @@ export default function App() {
         if (result.theme) next.theme = result.theme;
         if (result.ctaStyle) next.ctaStyle = result.ctaStyle;
         if (result.gdStyle) next.gdStyle = result.gdStyle;
+        if (result.layout && LAYOUTS[result.layout]) {
+          next.layout = { ...d.layout, 'UI/UX Design': result.layout };
+        }
+        if (result.gdLayout && LAYOUTS[result.gdLayout]) {
+          next.layout = { ...next.layout, 'Graphic Design': result.gdLayout };
+        }
         if (result.prototype) {
           const { items, ...rest } = result.prototype;
           next.content = {
@@ -351,10 +381,7 @@ export default function App() {
             items: items?.length ? items : d.content.items,
           };
           // A regenerated concept starts from a clean layout.
-          next.positions = {
-            stats: { x: 0, y: 0 }, hero: { x: 0, y: 0 }, card: { x: 0, y: 0 }, chart: { x: 0, y: 0 },
-            gdHeadline: { x: 0, y: 0 }, gdShape: { x: 0, y: 0 },
-          };
+          next.positions = {};
           next.sizes = {};
           next.fills = {};
         }
@@ -417,6 +444,41 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [visibleSelection, deleteSelection, commit]);
+
+  // The ghost demo performs the product argument rather than describing it.
+  // Every step is a real document mutation, so what the viewer sees is the
+  // actual tool working, and the final undo leaves the document untouched.
+  const ghostSteps = useRef(0);
+
+  const runGhostStep = useCallback((act) => {
+    if (act === 'select') {
+      setSelectedId('hero');
+    } else if (act === 'drag') {
+      ghostSteps.current += 1;
+      commit((d) => ({
+        ...d,
+        positions: { ...d.positions, hero: { x: 26, y: 14 } },
+      }));
+    } else if (act === 'type') {
+      ghostSteps.current += 1;
+      commit((d) => ({
+        ...d,
+        content: { ...d.content, statLabel: 'Edited by hand' },
+      }));
+    } else if (act === 'undo') {
+      for (let i = 0; i < ghostSteps.current; i += 1) dispatch({ type: 'undo' });
+      ghostSteps.current = 0;
+    }
+  }, [commit]);
+
+  const endGhost = useCallback(() => {
+    // Roll back anything the demo did but did not get to undo itself.
+    for (let i = 0; i < ghostSteps.current; i += 1) dispatch({ type: 'undo' });
+    ghostSteps.current = 0;
+    localStorage.setItem(DEMO_SEEN_KEY, 'true');
+    setGhost(false);
+    setSelectedId(null);
+  }, []);
 
   // Document name tracks the generated concept.
   const docName = `${(doc.content.appName || 'Untitled').replace(/\s+/g, '')}_${
@@ -564,7 +626,22 @@ export default function App() {
         <ToolButton icon={<Square size={15} />} title="Add shape" onClick={() => addElement('shape')} />
         <ToolButton icon={<Type size={15} />} title="Add text" onClick={() => addElement('text')} />
         <div className="w-px h-4 bg-spectrum-400 mx-1.5" />
-        <ToolButton icon={<Layout size={15} />} title="Auto layout (roadmap)" disabled />
+        <div className="flex items-center gap-1 ml-1">
+          {LAYOUTS_FOR[workspace].map((id) => (
+            <button
+              key={id}
+              onClick={() => setLayout(id)}
+              title={`${LAYOUTS[id].name} composition`}
+              className={`h-8 px-2.5 rounded-[4px] text-[12px] font-medium transition-colors ${
+                layoutFor(doc, workspace) === id
+                  ? 'bg-accent text-white'
+                  : 'text-spectrum-100 hover:text-spectrum-50 hover:bg-spectrum-500'
+              }`}
+            >
+              {LAYOUTS[id].name}
+            </button>
+          ))}
+        </div>
         <ToolButton icon={<ImageIcon size={15} />} title="Place image (roadmap)" disabled />
         <ToolButton icon={<Folder size={15} />} title="Creative Cloud Libraries (roadmap)" disabled />
       </div>
@@ -611,10 +688,12 @@ export default function App() {
               onMouseDown={(e) => e.stopPropagation()}
             >
               {workspace === 'UI/UX Design'
-                ? <UIUXArtboard {...artboardProps} />
-                : <GraphicArtboard {...artboardProps} />}
+                ? <AppShell {...artboardProps} />
+                : <CampaignArtboard {...artboardProps} />}
             </div>
           </div>
+
+          {ghost && <GhostDemo onStep={runGhostStep} onEnd={endGhost} />}
 
           <div className="shrink-0 flex justify-center px-4 pb-4">
             <AIPanel
@@ -637,7 +716,7 @@ export default function App() {
               crossSurface={crossSurface}
               connected={Boolean(apiKey)}
               providerName={model || DEFAULT_MODELS[provider]}
-              selectionLabel={visibleSelection ? labelOf(visibleSelection, doc) : 'no selection'}
+              selectionLabel={visibleSelection ? labelOf(visibleSelection, doc, workspace) : 'no selection'}
             />
           </div>
         </main>
@@ -650,10 +729,10 @@ export default function App() {
           <PropertiesPanel
             doc={doc}
             selectedId={visibleSelection}
-            label={visibleSelection ? labelOf(visibleSelection, doc) : 'No selection'}
+            label={visibleSelection ? labelOf(visibleSelection, doc, workspace) : 'No selection'}
             geometry={geometry}
             fill={activeFill}
-            deletable={Boolean(visibleSelection) && !ELEMENTS[visibleSelection]}
+            deletable={Boolean(visibleSelection) && !elementsFor(doc, workspace)[visibleSelection]}
             onAlign={align}
             onGeometry={setGeometry}
             onFillScrubStart={begin}

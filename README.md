@@ -14,7 +14,7 @@ Adobe Stage was built as the final product launch project for the Product Market
 
 ## The problem: the prompt wall
 
-Ask any generative design tool for a fintech dashboard and you will have something on screen in eight seconds. Genuinely impressive. Now ask it to move the transfer button twelve pixels to the right and make the corner radius a little tighter.
+Everyone can generate a screen now. Ask any of them for a fintech dashboard and you will have something in eight seconds. Genuinely impressive, and completely undifferentiated. Now ask it to move the transfer button twelve pixels to the right and make the corner radius a little tighter.
 
 Good luck.
 
@@ -35,14 +35,14 @@ Every prompt-only tool forces visual thinkers to work in System 2 forever. Stage
 
 This is the whole argument, and you can run it yourself on the [live prototype](https://adobestageproto.netlify.app/). No account, no API key, no install. The tool ships with a demo mode that answers a fixed set of prompts from built-in archetypes, which is enough to walk the entire flow.
 
-**1. Prompt a concept.**
-Type `a crypto wallet dashboard` into the Stage AI bar and press Enter. The dashboard re-skins end to end: product name, balance widget, transaction rows, call to action, theme. Try `a fitness tracking app` or `a music streaming launch ad` too.
+**1. Prompt a concept, then prompt a different one.**
+Type `a music streaming app`, then `an online shopping app`. Watch what changes. The first becomes a media player with large artwork, a scrubber and a queue, in purple. The second becomes a catalogue with a promo banner and a product grid, in rose. The composition changes, not just the wording, and the brand colour comes with it.
 
 **2. Notice the second surface.**
 The footer of the AI panel now says *Graphic Design updated*. Click it. The same concept is already laid out as a 4:5 social ad, using the same brand name and the same headline logic. One prompt, two surfaces, one brand. This is the part Figma and Canva make you do twice.
 
 **3. Now finish it by hand, without prompting again.**
-Select the headline, or the balance widget, or anything else. Then:
+This is the part nothing else does. Select anything on the canvas. Then:
 
 | What you want | How you do it |
 |---|---|
@@ -68,7 +68,9 @@ I would rather be honest about a prototype than oversell it, so the app itself m
 
 **Working today**
 
-- Prompt to design, across both workspaces, with real Gemini or OpenAI calls when you supply a key and deterministic archetypes when you do not
+- Three app compositions (analytics dashboard, media player, catalogue) and two campaign compositions (type poster, product ad), switchable by hand from the toolbar or chosen for you by the prompt
+- Prompt to design, with real Gemini or OpenAI calls when you supply a key and deterministic archetypes when you do not
+- A generated accent colour that carries through the whole screen
 - Drag, four-corner resize, arrow-key nudge, delete
 - Inline text editing directly on the artboard
 - X / Y / W / H numeric controls, six-way alignment, fill colour

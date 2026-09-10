@@ -16,19 +16,19 @@ const WALKTHROUGH = [
   {
     n: 1,
     title: 'Prompt a concept',
-    body: 'Type "a crypto wallet dashboard" into Stage AI and press Enter. The dashboard re-skins end to end: name, balance, transactions, call to action.',
+    body: 'Try "a music streaming app", then "an online shopping app". The composition changes, not just the words: one becomes a media player, the other a catalogue, each with its own brand colour.',
     icon: <Sparkles size={14} />,
   },
   {
     n: 2,
     title: 'Check the second surface',
-    body: 'The footer says Graphic Design updated. Click it. The same concept is already laid out as a social ad. One prompt, two surfaces, one brand.',
+    body: 'The footer says Graphic Design updated. Click it. The same concept is already laid out as a campaign, and a shoppable product picks the product ad rather than the type poster.',
     icon: <Layers size={14} />,
   },
   {
     n: 3,
     title: 'Finish it by hand',
-    body: 'Select the headline. Drag it, nudge with arrow keys, resize from a corner, retype it inline, or set an exact X/W and a fill colour in the properties panel. No re-prompting.',
+    body: 'This is the part nothing else does. Select anything. Drag it, nudge with arrow keys, resize from a corner, retype it in place, set an exact X or W, change its fill. You never go back to the prompt box.',
     icon: <MousePointer2 size={14} />,
   },
   {
@@ -41,7 +41,8 @@ const WALKTHROUGH = [
 
 const CAPABILITIES = {
   live: [
-    'Prompt-to-design across both workspaces',
+    'Three app compositions and two campaign compositions',
+    'Prompt picks the layout, the palette and the copy',
     'Drag, corner-resize, and arrow-key nudge',
     'Inline text editing on the artboard',
     'X / Y / W / H, alignment, and fill controls',
@@ -90,8 +91,9 @@ export default function Onboarding({ onComplete, hasKey }) {
       body: (
         <div className="space-y-4">
           <p className="text-[13px] leading-relaxed text-spectrum-100">
-            Generative design tools hit a <span className="text-spectrum-50 font-semibold">prompt wall</span>: you get
-            90% of a layout in seconds, then spend an hour re-prompting to move one button 12 pixels.
+            Everyone can generate a screen now. Nobody lets you <span className="text-spectrum-50 font-semibold">finish</span> one.
+            You get 90% of a layout in seconds, then hit the prompt wall: an hour of re-prompting to move one button 12 pixels,
+            and a re-roll that loses the two things you liked.
           </p>
           <p className="text-[13px] leading-relaxed text-spectrum-100">
             Stage splits the job. <span className="text-spectrum-50 font-semibold">Prompt the first 90%</span> in plain

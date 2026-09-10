@@ -21,6 +21,9 @@ You MUST respond with ONLY a valid JSON object (no markdown formatting, no code 
 
 {
   "theme": "light" | "dark" | null,
+  "layout": "dashboard" | "player" | "catalog",
+  "gdLayout": "poster" | "productAd",
+  "accentHex": "Six-digit hex WITHOUT the #, chosen for the domain (e.g. 1473E6 finance, 7C3AED music, 059669 health, E11D48 food)",
   "ctaStyle": "blue" | "black" | null,
   "gdStyle": "modern" | "cyberpunk" | null,
   "prototype": {
@@ -30,6 +33,7 @@ You MUST respond with ONLY a valid JSON object (no markdown formatting, no code 
     "greeting": "Personalized headline (e.g. Welcome back, Alex or Today's Market Pulse)",
     "statLabel": "Key metric label (e.g. Total Balance, Listening Time, Calories Burned)",
     "statValue": "Key metric value (e.g. $24,500.00, 14.8 hrs, 2,340 kcal)",
+    "statDelta": "Short change note (e.g. +12.4% vs last month). Omit for media domains.",
     "ctaLabel": "Action button text (e.g. Transfer, Play Now, Log Workout, Swap)",
     "activityTitle": "Section title (e.g. Recent Activity, Top Tracks, Workout Log)",
     "stats": [ { "label": "Short KPI label", "value": "Short value" } ],
@@ -50,6 +54,9 @@ Rules:
 - navItems and searchPlaceholder MUST match the domain. A shopping app does not have a "Transfers" tab and does not "Search transactions". Getting this wrong makes the result look like a banking template with the words swapped.
 - Set "theme" to "dark" or "light" if the domain or prompt calls for it.
 - Set "gdStyle" to "cyberpunk" for tech/cyber/futuristic prompts, or "modern" otherwise.
+- CHOOSE THE LAYOUT, this matters more than the wording. "player" for anything media, audio, video or playback led. "catalog" for shopping, marketplaces, listings and anything browsed as a grid of things. "dashboard" for metrics, admin, finance, analytics and operations. Pick "productAd" over "poster" when there is a physical or purchasable product to show.
+- On the "player" layout, statLabel is the track or episode title and statValue is the artist or show. On "catalog", statLabel is the promo headline, statValue is the supporting line, and each entry in "stats" is a product where label is its name and value is its price.
+- accentHex carries most of the visual identity. Never return the default blue for a domain that has its own colour.
 - Keep text concise and realistic.
 - "items" should hold 2 to 4 rows. "stats" should hold 0 to 3 KPI tiles. Vary these between domains: a dashboard that always has exactly two rows and three tiles looks templated.
 - Set "chart" to null when a chart would not belong on this screen, otherwise give it a real title and 7 plausible values. The series is a shape, not exact data.`;
@@ -183,6 +190,8 @@ function parseAIResponse(text) {
   }
 
   return {
+    layout: parsed.layout || null,
+    gdLayout: parsed.gdLayout || null,
     theme: parsed.theme || null,
     ctaStyle: parsed.ctaStyle || null,
     gdStyle: parsed.gdStyle || null,
@@ -205,6 +214,7 @@ const DOMAINS = [
   {
     id: 'crypto',
     keywords: ['crypto', 'bitcoin', 'btc', 'ethereum', 'web3', 'wallet', 'defi', 'token', 'blockchain', 'nft'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '7C5CFF',
     theme: 'dark', gdStyle: 'cyberpunk',
     data: {
       appName: 'OrbitCrypto', 
@@ -225,6 +235,7 @@ const DOMAINS = [
   {
     id: 'music',
     keywords: ['music', 'spotify', 'song', 'audio', 'podcast', 'streaming', 'playlist', 'radio', 'album'],
+    layout: 'player', gdLayout: 'poster', accentHex: '8B5CF6',
     theme: 'dark', gdStyle: 'modern',
     data: {
       appName: 'SoundStage', 
@@ -245,6 +256,7 @@ const DOMAINS = [
   {
     id: 'fitness',
     keywords: ['fitness', 'gym', 'workout', 'health', 'running', 'training', 'exercise', 'yoga', 'wellness', 'steps'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '059669',
     theme: 'light', gdStyle: 'modern',
     data: {
       appName: 'PulseFit', 
@@ -265,6 +277,7 @@ const DOMAINS = [
   {
     id: 'commerce',
     keywords: ['ecommerce', 'commerce', 'store', 'shop', 'shopping', 'cart', 'retail', 'marketplace', 'seller', 'merchant', 'order'],
+    layout: 'catalog', gdLayout: 'productAd', accentHex: 'E11D48',
     theme: 'light', gdStyle: 'modern',
     data: {
       appName: 'AuraMarket', 
@@ -285,6 +298,7 @@ const DOMAINS = [
   {
     id: 'saas',
     keywords: ['saas', 'analytics', 'cloud', 'metrics', 'devops', 'infrastructure', 'api', 'monitoring', 'platform', 'b2b'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '0EA5E9',
     theme: 'dark', gdStyle: 'modern',
     data: {
       appName: 'CloudMetrics', 
@@ -305,6 +319,7 @@ const DOMAINS = [
   {
     id: 'banking',
     keywords: ['bank', 'banking', 'fintech', 'finance', 'payment', 'invoice', 'budget', 'savings', 'lending', 'card'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '1473E6',
     theme: 'light', gdStyle: 'modern',
     data: {
       appName: 'AcmeBank', 
@@ -325,6 +340,7 @@ const DOMAINS = [
   {
     id: 'travel',
     keywords: ['travel', 'flight', 'hotel', 'trip', 'booking', 'airline', 'holiday', 'vacation', 'itinerary', 'tourism'],
+    layout: 'catalog', gdLayout: 'productAd', accentHex: 'F97316',
     theme: 'light', gdStyle: 'modern',
     data: {
       appName: 'Wayfare', 
@@ -345,6 +361,7 @@ const DOMAINS = [
   {
     id: 'food',
     keywords: ['food', 'restaurant', 'delivery', 'recipe', 'meal', 'kitchen', 'grocery', 'cafe', 'menu', 'dining'],
+    layout: 'catalog', gdLayout: 'productAd', accentHex: 'DC2626',
     theme: 'light', gdStyle: 'modern',
     data: {
       appName: 'Fork&Field', 
@@ -365,6 +382,7 @@ const DOMAINS = [
   {
     id: 'education',
     keywords: ['education', 'learning', 'course', 'student', 'school', 'university', 'teaching', 'study', 'tutor', 'lesson'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '4F46E5',
     theme: 'light', gdStyle: 'modern',
     data: {
       appName: 'Lumen', 
@@ -385,6 +403,7 @@ const DOMAINS = [
   {
     id: 'social',
     keywords: ['social', 'community', 'chat', 'messaging', 'feed', 'network', 'forum', 'creator', 'follower'],
+    layout: 'player', gdLayout: 'poster', accentHex: 'EC4899',
     theme: 'dark', gdStyle: 'modern',
     data: {
       appName: 'Commons', 
@@ -405,6 +424,7 @@ const DOMAINS = [
   {
     id: 'realestate',
     keywords: ['real estate', 'property', 'rent', 'rental', 'housing', 'apartment', 'mortgage', 'landlord', 'listing'],
+    layout: 'dashboard', gdLayout: 'productAd', accentHex: '0F766E',
     theme: 'light', gdStyle: 'modern',
     data: {
       appName: 'Keystone', 
@@ -425,6 +445,7 @@ const DOMAINS = [
   {
     id: 'jobs',
     keywords: ['job', 'jobs', 'hiring', 'recruiting', 'recruitment', 'career', 'applicant', 'candidate', 'resume', 'ats'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '2563EB',
     theme: 'light', gdStyle: 'modern',
     data: {
       appName: 'Shortlist', 
@@ -600,7 +621,13 @@ function fallbackGenerate(prompt) {
   // 2. A known domain gives a hand-written archetype.
   const domain = matchDomain(prompt);
   if (domain) {
-    result.prototype = { ...domain.data, items: domain.data.items.map((i) => ({ ...i })) };
+    result.prototype = {
+      ...domain.data,
+      accentHex: domain.accentHex,
+      items: domain.data.items.map((i) => ({ ...i })),
+    };
+    result.layout = domain.layout;
+    result.gdLayout = domain.gdLayout;
     if (!result.theme) result.theme = domain.theme;
     if (!result.gdStyle) result.gdStyle = domain.gdStyle;
     result.message = [`Generated a ${domain.id} concept: ${domain.data.appName}.`, ...notes].join(' ');
@@ -610,7 +637,16 @@ function fallbackGenerate(prompt) {
   // 3. Anything else is built from the user's own words.
   const derived = deriveFromPrompt(prompt);
   if (derived) {
-    result.prototype = derived;
+    const lower2 = String(prompt).toLowerCase();
+    result.layout = /play|watch|listen|stream|video|audio|episode|podcast/.test(lower2)
+      ? 'player'
+      : /shop|store|browse|catalog|gallery|collection|marketplace|menu|listing/.test(lower2)
+        ? 'catalog'
+        : 'dashboard';
+    result.gdLayout = result.layout === 'catalog' ? 'productAd' : 'poster';
+    // A stable hue per prompt, so the same words always give the same brand.
+    const hue = [...String(prompt)].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 360, 7);
+    result.prototype = { ...derived, accentHex: hslToHex(hue, 68, 52) };
     result.message = [
       `Generated "${derived.appName}" from your prompt. Demo mode approximates unknown domains, so add an API key for a real design.`,
       ...notes,
@@ -620,4 +656,15 @@ function fallbackGenerate(prompt) {
 
   result.message = notes.join(' ') || 'Nothing to change. Try describing an app or a campaign.';
   return result;
+}
+
+
+// Stable accent for prompts that match no known domain.
+function hslToHex(h, sPct, lPct) {
+  const s = sPct / 100;
+  const l = lPct / 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+  return [f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('');
 }
