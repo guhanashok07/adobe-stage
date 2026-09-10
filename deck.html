@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adobe Stage — Executive Launch Plan</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            adobe: {
+              red: '#FA0F00',
+              darkRed: '#D60D00',
+              bg: '#0D0D0E',
+              card: '#161618',
+              cardHover: '#1C1C1F',
+              border: '#2A2A2E',
+              borderSubtle: '#1F1F23',
+              textMuted: '#94949E',
+              accentBlue: '#2680EB',
+              accentCyan: '#10B981',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #0D0D0E;
+      color: #E8E8ED;
+      overflow: hidden;
+      user-select: none;
+    }
+    .slide {
+      display: none;
+      opacity: 0;
+      transition: opacity 0.25s ease-in-out;
+    }
+    .slide.active {
+      display: flex;
+      opacity: 1;
+    }
+    .glass-card {
+      background: linear-gradient(145deg, rgba(26,26,30,0.85) 0%, rgba(18,18,20,0.95) 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(16px);
+    }
+    .glass-card-accent {
+      background: linear-gradient(145deg, rgba(250,15,0,0.06) 0%, rgba(18,18,20,0.95) 100%);
+      border: 1px solid rgba(250,15,0,0.25);
+    }
+    .tag-badge {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="font-sans antialiased h-screen w-screen flex flex-col justify-between p-6 md:p-10">
+
+  <!-- Header / Navigation Bar -->
+  <header class="w-full flex items-center justify-between z-50 shrink-0 pb-4 border-b border-adobe-borderSubtle">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-adobe-red flex items-center justify-center shadow-lg shadow-red-500/20">
+        <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M15.1 2H22V22L15.1 2ZM8.9 2H2V22L8.9 2ZM12 9.4L17.6 22H13.8L12 17.5L8.5 22H5.4L12 9.4Z"/>
+        </svg>
+      </div>
+      <div>
+        <span class="text-sm font-semibold tracking-wider text-white">Adobe Stage</span>
+        <span class="text-xs text-adobe-textMuted ml-2">Final Launch Plan · CMU Product Marketing</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <a href="https://adobestageproto.netlify.app/" target="_blank" class="text-xs bg-adobe-card hover:bg-adobe-cardHover border border-adobe-border px-3 py-1.5 rounded-full text-zinc-300 hover:text-white flex items-center gap-1.5 transition">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        Live Prototype
+      </a>
+      <div class="text-xs text-adobe-textMuted font-mono bg-zinc-900 border border-adobe-border px-3 py-1.5 rounded-md">
+        <span id="current-slide-num" class="text-white font-bold">1</span> / <span id="total-slides-num">16</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Slide Stage Container -->
+  <main id="stage-container" class="flex-1 w-full max-w-7xl mx-auto flex items-center justify-center my-auto py-4 overflow-y-auto">
+
+    <!-- Slide 1: Cover -->
+    <section class="slide active flex-col justify-center items-start w-full max-w-5xl text-left" data-title="Title">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-adobe-red text-xs font-semibold tracking-wide uppercase mb-6">
+        Product Marketing Final Plan
+      </div>
+      <h1 class="text-6xl md:text-7xl lg:text-8xl font-black tracking-tight text-white mb-6 leading-tight">
+        Adobe <span class="text-adobe-red">Stage</span>
+      </h1>
+      <p class="text-2xl md:text-3xl text-zinc-300 font-normal max-w-3xl mb-8 leading-snug">
+        Reclaiming the Digital Canvas: Browser-native, AI-first collaborative design for the next 400M creators.
+      </p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full pt-8 border-t border-adobe-borderSubtle text-sm text-zinc-400">
+        <div><span class="text-xs uppercase text-zinc-500 block">Strategy & Lead</span> Guhan Ashok</div>
+        <div><span class="text-xs uppercase text-zinc-500 block">Product Team</span> Archana Kamath</div>
+        <div><span class="text-xs uppercase text-zinc-500 block">Product Team</span> Nags Hanumanthappa</div>
+        <div><span class="text-xs uppercase text-zinc-500 block">Product Team</span> Urmi Dutta</div>
+      </div>
+    </section>
+
+    <!-- Slide 2: Executive Summary -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="Executive Summary">
+      <div class="mb-8">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">01 / Opportunity</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold text-white mt-3">The Mammoth Opportunity</h2>
+        <p class="text-lg text-adobe-textMuted mt-2 max-w-3xl">
+          Adobe Stage is our definitive answer to the rapidly shifting landscape of digital creation: bridging Canva's template rigidity and Figma's steep engineering complexity.
+        </p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="glass-card p-6 rounded-2xl">
+          <div class="text-4xl lg:text-5xl font-black text-white mb-2 font-mono">400M+</div>
+          <div class="text-base font-semibold text-zinc-200 mb-1">Underserved Creators</div>
+          <p class="text-sm text-adobe-textMuted leading-relaxed">
+            Founders, product managers, and marketers trapped in fragmented workflows between text LLMs, image generators, and canvas editors.
+          </p>
+        </div>
+        <div class="glass-card-accent p-6 rounded-2xl relative overflow-hidden">
+          <div class="text-4xl lg:text-5xl font-black text-adobe-red mb-2 font-mono">M+</div>
+          <div class="text-base font-semibold text-white mb-1">ARR Target (Year 1)</div>
+          <p class="text-sm text-zinc-300 leading-relaxed">
+            Targeting 10M free signups converting to 350K paid team seats at a blended /mo ARPU through organic virality.
+          </p>
+        </div>
+        <div class="glass-card p-6 rounded-2xl">
+          <div class="text-4xl lg:text-5xl font-black text-white mb-2 font-mono">B+</div>
+          <div class="text-base font-semibold text-zinc-200 mb-1">Enterprise Category by Y3</div>
+          <p class="text-sm text-adobe-textMuted leading-relaxed">
+            Land bottom-up with individual builders; monetize centralized brand governance, enterprise SSO, and Firefly legal indemnification.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 3: The Problem: Prompt Wall -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="The Prompt Wall">
+      <div class="mb-8">
+        <span class="tag-badge bg-red-500/10 text-adobe-red border border-red-500/30">02 / Core Problem</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold text-white mt-3">Creativity Interrupted: The Prompt Wall</h2>
+        <p class="text-lg text-adobe-textMuted mt-2">
+          Generative AI solved the "blank canvas" problem, but created an even worse bottleneck during the polish phase.
+        </p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="glass-card p-8 rounded-2xl border-l-4 border-l-red-500">
+          <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <span>The "Last 10%" Dilemma</span>
+          </h3>
+          <p class="text-zinc-300 leading-relaxed text-sm mb-4">
+            A user writes a prompt and gets 90% of a decent design layout. But adjusting a button margin, tweaking a font weight, or nudging an icon requires endless, frustrating text re-prompts.
+          </p>
+          <div class="bg-zinc-950 p-4 rounded-xl border border-zinc-800 font-mono text-xs text-red-400 space-y-1">
+            <div>&gt; "Make the CTA slightly darker blue."</div>
+            <div class="text-zinc-500">AI regenerates whole layout... destroys previous fonts.</div>
+            <div>&gt; "No, keep the original layout, just shift the button!"</div>
+            <div class="text-zinc-500">AI hallucinates new structure. Flow destroyed.</div>
+          </div>
+        </div>
+        <div class="glass-card p-8 rounded-2xl border-l-4 border-l-blue-500">
+          <h3 class="text-xl font-bold text-white mb-4">Kahneman's Decision Science</h3>
+          <p class="text-zinc-300 leading-relaxed text-sm mb-4">
+            Prompt-only generation forces spatial visual thinkers into <strong class="text-white">System 2</strong> (deliberate, linguistic, exhausting cognitive effort) instead of <strong class="text-white">System 1</strong> (intuitive, direct visual manipulation).
+          </p>
+          <div class="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
+            <strong>Key Insight:</strong> Designers and builders think in spatial relationships, typography hierarchy, and direct interactions—not paragraph syntax.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 4: The Solution -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="The Solution">
+      <div class="mb-8">
+        <span class="tag-badge bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">03 / The Solution</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold text-white mt-3">Adobe Stage: Restoring Creative Autopilot</h2>
+        <p class="text-lg text-adobe-textMuted mt-2">
+          The best of both worlds: generative AI does the heavy lifting; direct visual controls handle the polish.
+        </p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div class="text-3xl font-black font-mono text-adobe-red mb-2">01</div>
+          <div class="font-bold text-white mb-2">Prompt to Foundation</div>
+          <p class="text-xs text-adobe-textMuted leading-relaxed">Generate complete responsive UI screens or social graphics from natural language in seconds.</p>
+        </div>
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div class="text-3xl font-black font-mono text-adobe-accentBlue mb-2">02</div>
+          <div class="font-bold text-white mb-2">Interactive Block Tree</div>
+          <p class="text-xs text-adobe-textMuted leading-relaxed">Every generated element immediately converts into an inspectable, drag-and-drop vector block.</p>
+        </div>
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div class="text-3xl font-black font-mono text-emerald-400 mb-2">03</div>
+          <div class="font-bold text-white mb-2">Zero Re-Prompting</div>
+          <p class="text-xs text-adobe-textMuted leading-relaxed">Click, drag, edit copy inline, and adjust visual sliders for color, padding, and layout without prompt lag.</p>
+        </div>
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div class="text-3xl font-black font-mono text-purple-400 mb-2">04</div>
+          <div class="font-bold text-white mb-2">Brand DNA Guardrails</div>
+          <p class="text-xs text-adobe-textMuted leading-relaxed">Automatically lock brand colors, typography, and asset libraries into every iteration.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 5: Market Evolution & Competitive Landscape -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="Market Positioning">
+      <div class="mb-6">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">04 / Market Context</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mt-2">Positioning in a Red Ocean</h2>
+        <p class="text-sm text-adobe-textMuted mt-1">
+          With rapid launches from Google Stitch, Claude Design, and Figma Make, differentiation requires workflow ownership and commercial trust.
+        </p>
+      </div>
+      <div class="overflow-x-auto w-full">
+        <table class="w-full text-left text-xs text-zinc-300 border-collapse glass-card rounded-2xl overflow-hidden">
+          <thead>
+            <tr class="border-b border-zinc-800 bg-zinc-900/80 text-zinc-400 font-mono">
+              <th class="p-4">Dimension</th>
+              <th class="p-4">Figma / Canva</th>
+              <th class="p-4">Claude / Google Stitch</th>
+              <th class="p-4 text-adobe-red font-bold">Adobe Stage</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-800/60">
+            <tr>
+              <td class="p-4 font-semibold text-white">Design Paradigm</td>
+              <td class="p-4 text-zinc-400">Manual vector drawing or rigid templates</td>
+              <td class="p-4 text-zinc-400">Code-compilation (prompt-to-code)</td>
+              <td class="p-4 text-white font-medium bg-red-500/5">Fluid AI foundation + Direct visual canvas</td>
+            </tr>
+            <tr>
+              <td class="p-4 font-semibold text-white">Scope of Surfaces</td>
+              <td class="p-4 text-zinc-400">Siloed: UI (Figma) vs Social (Canva)</td>
+              <td class="p-4 text-zinc-400">Narrow app UI dashboards only</td>
+              <td class="p-4 text-white font-medium bg-red-500/5">Full creative suite: UI/UX + Graphic Design + Brand</td>
+            </tr>
+            <tr>
+              <td class="p-4 font-semibold text-white">Legal & Enterprise Trust</td>
+              <td class="p-4 text-zinc-400">Limited AI-native indemnification</td>
+              <td class="p-4 text-zinc-400">Scraped training data; corporate legal blocks</td>
+              <td class="p-4 text-white font-medium bg-red-500/5">100% Firefly-backed copyright indemnification</td>
+            </tr>
+            <tr>
+              <td class="p-4 font-semibold text-white">The "Last 10%" Polish</td>
+              <td class="p-4 text-zinc-400">High skill floor; tedious vector math</td>
+              <td class="p-4 text-zinc-400">Fails completely (prompt fatigue)</td>
+              <td class="p-4 text-white font-medium bg-red-500/5">Visual slider controls & inline text editing</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Slide 6: Deep Audience Personas -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="Target Audience">
+      <div class="mb-6">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">05 / Personas</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mt-2">The Underserved 400M</h2>
+        <p class="text-sm text-adobe-textMuted mt-1">Addressing distinct friction points across the creative and product spectrum.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Persona 1 -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-white">Jordan</h3>
+              <span class="text-xs text-zinc-400 font-mono">Solo Designer</span>
+            </div>
+            <div class="text-xs text-red-400 font-semibold mb-2">Friction: The Vocabulary Gap</div>
+            <p class="text-xs text-zinc-300 leading-relaxed mb-4">
+              Visual thinkers can't articulate "set corner radius to 12px with 24px inner padding." Currently forced to stitch Midjourney and Figma.
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800/80 text-xs text-zinc-400">
+            <strong class="text-white block mb-1">Stage Value:</strong>
+            Instant professional output with pixel-perfect visual edits on a single canvas.
+          </div>
+        </div>
+        <!-- Persona 2 -->
+        <div class="glass-card-accent p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-adobe-red">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-white">Marcus</h3>
+              <span class="text-xs text-zinc-300 font-mono">Founder / PM</span>
+            </div>
+            <div class="text-xs text-adobe-red font-semibold mb-2">Friction: The Fragmentation Tax</div>
+            <p class="text-xs text-zinc-200 leading-relaxed mb-4">
+              Needs investor-grade mockups by Friday. Terrified of looking amateur. Juggling ChatGPT + Canva + Lovable with zero design budget.
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800/80 text-xs text-zinc-300">
+            <strong class="text-white block mb-1">Stage Value:</strong>
+            Produce agency-quality interactive prototypes and pitch assets in under 60 seconds.
+          </div>
+        </div>
+        <!-- Persona 3 -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-white">Priya</h3>
+              <span class="text-xs text-zinc-400 font-mono">UX Design Director</span>
+            </div>
+            <div class="text-xs text-blue-400 font-semibold mb-2">Friction: Brand Paranoia & IP Fear</div>
+            <p class="text-xs text-zinc-300 leading-relaxed mb-4">
+              Cannot police rogue AI tool usage across 80+ team members. Terrified of copyright infringement and brand degradation.
+            </p>
+          </div>
+          <div class="pt-4 border-t border-zinc-800/80 text-xs text-zinc-400">
+            <strong class="text-white block mb-1">Stage Value:</strong>
+            Enterprise Brand DNA Engine + full Firefly commercial copyright indemnification.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 7: Value Architecture -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="Value Architecture">
+      <div class="mb-8">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">06 / Value Engine</span>
+        <h2 class="text-4xl md:text-5xl font-extrabold text-white mt-3">Elements of Value Architecture</h2>
+        <p class="text-lg text-adobe-textMuted mt-2">Multi-tiered value proposition driving adoption, retention, and enterprise pricing power.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="glass-card p-6 rounded-2xl">
+          <div class="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">Functional Value</div>
+          <h3 class="text-xl font-bold text-white mb-3">Speed & Cohesion</h3>
+          <ul class="space-y-3 text-sm text-zinc-300">
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400">✓</span> Saves hours by unifying generation and direct polish in one browser tab.
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400">✓</span> Eliminates tool switching and export-import file degradation.
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-emerald-400">✓</span> End-to-end flow from initial prompt to developer handoff.
+            </li>
+          </ul>
+        </div>
+        <div class="glass-card p-6 rounded-2xl">
+          <div class="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">Emotional / Ego Value</div>
+          <h3 class="text-xl font-bold text-white mb-3">Confidence & Flow</h3>
+          <ul class="space-y-3 text-sm text-zinc-300">
+            <li class="flex items-start gap-2">
+              <span class="text-blue-400">✓</span> Non-designers feel empowered creating agency-grade assets.
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-blue-400">✓</span> Lowers cognitive anxiety by replacing prompt guesswork with visual sliders.
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-blue-400">✓</span> Elevates founder credibility in front of investors and clients.
+            </li>
+          </ul>
+        </div>
+        <div class="glass-card-accent p-6 rounded-2xl">
+          <div class="text-xs font-bold text-adobe-red uppercase tracking-wider mb-3">Business & Economic Value</div>
+          <h3 class="text-xl font-bold text-white mb-3">Governance & Scale</h3>
+          <ul class="space-y-3 text-sm text-zinc-200">
+            <li class="flex items-start gap-2">
+              <span class="text-adobe-red">✓</span> Accelerated time-to-market: launch campaigns in hours, not weeks.
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-adobe-red">✓</span> Enforce brand consistency across distributed global teams.
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-adobe-red">✓</span> Full commercial safety with complete enterprise copyright protection.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 8: Go-To-Market Phase 1: Land -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="GTM: Land">
+      <div class="mb-6">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">07 / GTM Land</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mt-2">GTM Phase 1: Community Infiltration</h2>
+        <p class="text-sm text-adobe-textMuted mt-1">
+          Traditional paid display ads fail with design audiences. We go where creators live and work with near-zero CAC.
+        </p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="glass-card p-5 rounded-xl">
+          <div class="font-mono text-xs text-adobe-red font-bold uppercase mb-2">Ecosystem Anchor</div>
+          <div class="font-bold text-white text-base mb-2">Adobe CC Network</div>
+          <p class="text-xs text-zinc-300 leading-relaxed">
+            Direct in-app showcase to 25M+ active Creative Cloud subscribers on Day 1. Cross-promotion via Behance and Adobe Community forums.
+          </p>
+        </div>
+        <div class="glass-card p-5 rounded-xl">
+          <div class="font-mono text-xs text-adobe-accentBlue font-bold uppercase mb-2">Launch Velocity</div>
+          <div class="font-bold text-white text-base mb-2">Product Hunt Blitz</div>
+          <p class="text-xs text-zinc-300 leading-relaxed">
+            Top-hunter partnership, maker AMAs, and 24-hour response strategy. Goal: #1 Product of the Day and Week.
+          </p>
+        </div>
+        <div class="glass-card p-5 rounded-xl">
+          <div class="font-mono text-xs text-emerald-400 font-bold uppercase mb-2">Organic Word of Mouth</div>
+          <div class="font-bold text-white text-base mb-2">Design Twitter/X</div>
+          <p class="text-xs text-zinc-300 leading-relaxed">
+            Seed 500 top design and founder influencers with 6 months of Pro access. Weekly #StageBuild live design teardowns.
+          </p>
+        </div>
+        <div class="glass-card p-5 rounded-xl">
+          <div class="font-mono text-xs text-purple-400 font-bold uppercase mb-2">High-Intent Tutorial</div>
+          <div class="font-bold text-white text-base mb-2">YouTube & Loom</div>
+          <p class="text-xs text-zinc-300 leading-relaxed">
+            Partner with design educators (DesignCourse, AJ&Smart). Rapid "60-Second Stage" workflow shorts driving qualified signups.
+          </p>
+        </div>
+      </div>
+      <div class="mt-6 glass-card p-4 rounded-xl flex items-center justify-between text-xs text-zinc-300 font-mono">
+        <span>Phase 1 Milestone Target: <strong class="text-white">10M Free Signups in Y1</strong></span>
+        <span>Time-to-First-Value: <strong class="text-white">&lt; 60 seconds</strong></span>
+        <span>Customer Acquisition Cost: <strong class="text-emerald-400">Near Zero via PLG</strong></span>
+      </div>
+    </section>
+
+    <!-- Slide 9: Go-To-Market Phase 2: Expand & Monetize -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="GTM: Expand">
+      <div class="mb-6">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">08 / GTM Expand</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mt-2">The Enterprise Trojan Horse</h2>
+        <p class="text-sm text-adobe-textMuted mt-1">
+          Bottom-up viral adoption among individual creators fuels our high-margin top-down enterprise expansion.
+        </p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 relative">
+        <div class="glass-card p-5 rounded-xl">
+          <div class="text-xs font-mono text-zinc-500 mb-1">Step 01</div>
+          <div class="font-bold text-white mb-2">Zero-Friction Land</div>
+          <p class="text-xs text-zinc-400">A founder or designer generates a mockup for free. No credit card, no desktop installation required.</p>
+        </div>
+        <div class="glass-card p-5 rounded-xl">
+          <div class="text-xs font-mono text-zinc-500 mb-1">Step 02</div>
+          <div class="font-bold text-white mb-2">Viral Collaboration</div>
+          <p class="text-xs text-zinc-400">User shares a live interactive Stage link in Slack. Teammates open it, duplicate it, and start editing.</p>
+        </div>
+        <div class="glass-card-accent p-5 rounded-xl border-t-2 border-t-adobe-red">
+          <div class="text-xs font-mono text-adobe-red mb-1">Step 03</div>
+          <div class="font-bold text-white mb-2">The PQL Signal</div>
+          <p class="text-xs text-zinc-300">Telemetry detects 5+ active creators in the same enterprise email domain, automatically firing a qualified lead.</p>
+        </div>
+        <div class="glass-card p-5 rounded-xl">
+          <div class="text-xs font-mono text-zinc-500 mb-1">Step 04</div>
+          <div class="font-bold text-white mb-2">Enterprise Close</div>
+          <p class="text-xs text-zinc-400">Sell governance, SSO, and Firefly IP indemnification to the VP of Design and IT Procurement. Average deal: K ARR.</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-4 mt-6 text-center text-xs font-mono">
+        <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800"><span class="text-adobe-red font-bold">70%</span> of User Volume via PLG</div>
+        <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800"><span class="text-blue-400 font-bold">25%</span> via Community Amplification</div>
+        <div class="bg-zinc-900/60 p-3 rounded-lg border border-zinc-800"><span class="text-emerald-400 font-bold">40%+</span> of Total Revenue via Enterprise</div>
+      </div>
+    </section>
+
+    <!-- Slide 10: Compounding Growth Loop -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="Growth Loop">
+      <div class="mb-6">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">09 / Product-Led Growth</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mt-2">The Compounding Growth Loop</h2>
+        <p class="text-sm text-adobe-textMuted mt-1">Abandoning traditional linear funnels in favor of an organic, self-reinforcing flywheel.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-red-500/20 text-adobe-red font-mono font-bold flex items-center justify-center text-sm">A</div>
+              <div>
+                <div class="font-bold text-white text-sm">Create (Marcus / Founder)</div>
+                <div class="text-xs text-zinc-400">Types a prompt into browser-native Stage with zero install.</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 font-mono font-bold flex items-center justify-center text-sm">B</div>
+              <div>
+                <div class="font-bold text-white text-sm">Share (Live URL via Slack)</div>
+                <div class="text-xs text-zinc-400">Sends a live link to engineering. Zero friction to view or inspect specs.</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 font-mono font-bold flex items-center justify-center text-sm">C</div>
+              <div>
+                <div class="font-bold text-white text-sm">Collaborate & Export</div>
+                <div class="text-xs text-zinc-400">Engineer inspects tokens, exports React components, and experiences Stage firsthand.</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 font-mono font-bold flex items-center justify-center text-sm">D</div>
+              <div>
+                <div class="font-bold text-white text-sm">Expand & Multiply</div>
+                <div class="text-xs text-zinc-400">The engineer creates their own project. Every shared link acts as viral acquisition.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="glass-card-accent p-6 rounded-2xl flex flex-col justify-between">
+          <div>
+            <div class="text-xs font-mono uppercase tracking-wider text-adobe-red font-bold mb-2">Viral Engine Metric</div>
+            <div class="text-5xl font-black font-mono text-white mb-3">K &gt; 1.1</div>
+            <p class="text-sm text-zinc-300 leading-relaxed mb-6">
+              Because design is inherently collaborative, every active user naturally brings 1.1+ additional users into the ecosystem within 30 days without paid intervention.
+            </p>
+          </div>
+          <div class="p-4 rounded-xl bg-black/40 border border-zinc-800 text-xs text-zinc-400 font-mono">
+            Viral Loop Formula: <br/>
+            <span class="text-emerald-400">K = Invites Sent × Conversion Rate &gt; 1.0 (Self-Sustaining)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 11: Pricing Architecture -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="Pricing Architecture">
+      <div class="mb-6">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">10 / Monetization</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mt-2">Freemium to Value-Based Pricing</h2>
+        <p class="text-sm text-adobe-textMuted mt-1">Engineered for viral product-led acquisition and high enterprise gross margins.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Free Tier -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div>
+            <div class="font-bold text-zinc-400 text-sm mb-1">Free Tier</div>
+            <div class="text-4xl font-extrabold text-white font-mono mb-4">/bin/zsh</div>
+            <p class="text-xs text-zinc-400 mb-6">Drive viral acquisition, block competitors, and seed teams with zero barriers.</p>
+            <ul class="space-y-2 text-xs text-zinc-300">
+              <li>✓ Generous AI generation tokens</li>
+              <li>✓ Full visual block editing</li>
+              <li>✓ Up to 3 active projects</li>
+              <li>✓ Public link sharing</li>
+            </ul>
+          </div>
+          <div class="pt-6 mt-6 border-t border-zinc-800 text-center text-xs text-zinc-500 font-mono">Near-Zero CAC Engine</div>
+        </div>
+        <!-- Team Tier -->
+        <div class="glass-card-accent p-6 rounded-2xl flex flex-col justify-between border-t-2 border-t-adobe-red">
+          <div>
+            <div class="font-bold text-adobe-red text-sm mb-1">Team Pro</div>
+            <div class="text-4xl font-extrabold text-white font-mono mb-4"> <span class="text-xs font-normal text-zinc-400">/user/mo</span></div>
+            <p class="text-xs text-zinc-300 mb-6">Monetize organic spread within startups, scale-ups, and fast-paced creative agencies.</p>
+            <ul class="space-y-2 text-xs text-zinc-200">
+              <li>✓ Unlimited AI generation limits</li>
+              <li>✓ Real-time multiplayer collaboration</li>
+              <li>✓ Shared Brand DNA library</li>
+              <li>✓ React component code export</li>
+              <li>✓ Unlimited cloud projects</li>
+            </ul>
+          </div>
+          <div class="pt-6 mt-6 border-t border-zinc-800 text-center text-xs text-adobe-red font-mono font-bold">Primary Revenue Driver</div>
+        </div>
+        <!-- Enterprise Tier -->
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div>
+            <div class="font-bold text-zinc-400 text-sm mb-1">Enterprise</div>
+            <div class="text-4xl font-extrabold text-white font-mono mb-4">Custom</div>
+            <p class="text-xs text-zinc-400 mb-6">Priced on legal risk mitigation and brand compliance rather than mere compute cost.</p>
+            <ul class="space-y-2 text-xs text-zinc-300">
+              <li>✓ Full Firefly copyright indemnification</li>
+              <li>✓ Enterprise Brand DNA centralized governance</li>
+              <li>✓ SAML SSO, audit logs, and SOC2</li>
+              <li>✓ Dedicated technical customer success</li>
+            </ul>
+          </div>
+          <div class="pt-6 mt-6 border-t border-zinc-800 text-center text-xs text-zinc-500 font-mono">Fortune 500 Procurement Unlock</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 12: Goals & Measurement (AAARRR) -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="Metrics & AAARRR">
+      <div class="mb-6">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">11 / Execution Metrics</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mt-2">The M Run-Rate: AAARRR Funnel</h2>
+        <p class="text-sm text-adobe-textMuted mt-1">Rigorous metrics architecture tracking progress from awareness to recurring enterprise ARR.</p>
+      </div>
+      <div class="overflow-x-auto w-full">
+        <table class="w-full text-left text-xs text-zinc-300 border-collapse glass-card rounded-2xl overflow-hidden">
+          <thead>
+            <tr class="border-b border-zinc-800 bg-zinc-900/80 text-zinc-400 font-mono">
+              <th class="p-3.5">Stage</th>
+              <th class="p-3.5">Year 1 Target</th>
+              <th class="p-3.5">Core Mechanism</th>
+              <th class="p-3.5">Primary KPI</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-800/60">
+            <tr>
+              <td class="p-3.5 font-bold text-white">Awareness</td>
+              <td class="p-3.5 font-mono text-white">50M+ Impressions</td>
+              <td class="p-3.5 text-zinc-400">Organic influencer seeding, YouTube reviews, Product Hunt</td>
+              <td class="p-3.5 text-zinc-300">Share of voice vs Canva &amp; Figma</td>
+            </tr>
+            <tr>
+              <td class="p-3.5 font-bold text-white">Acquisition</td>
+              <td class="p-3.5 font-mono text-white">10M Signups</td>
+              <td class="p-3.5 text-zinc-400">Creative Cloud desktop banner, viral shared links</td>
+              <td class="p-3.5 text-zinc-300">Signup conversion rate, CAC &lt; </td>
+            </tr>
+            <tr class="bg-red-500/10">
+              <td class="p-3.5 font-bold text-adobe-red">★ Activation</td>
+              <td class="p-3.5 font-mono text-white">40% Activation Rate</td>
+              <td class="p-3.5 text-zinc-200">User prompts layout AND edits 1 block visually in &lt;60s</td>
+              <td class="p-3.5 text-adobe-red font-semibold">North Star Metric (Aha! moment)</td>
+            </tr>
+            <tr>
+              <td class="p-3.5 font-bold text-white">Retention</td>
+              <td class="p-3.5 font-mono text-white">40% Month-1</td>
+              <td class="p-3.5 text-zinc-400">Users starting a 2nd project within 30 days</td>
+              <td class="p-3.5 text-zinc-300">D7, D14, D30 retention curves</td>
+            </tr>
+            <tr>
+              <td class="p-3.5 font-bold text-white">Revenue</td>
+              <td class="p-3.5 font-mono text-white">M+ ARR</td>
+              <td class="p-3.5 text-zinc-400">350K paid seats at /mo blended ARPU + enterprise contracts</td>
+              <td class="p-3.5 text-zinc-300">MRR growth rate, Net Revenue Retention (NRR)</td>
+            </tr>
+            <tr>
+              <td class="p-3.5 font-bold text-white">Referral</td>
+              <td class="p-3.5 font-mono text-white">K &gt; 1.1</td>
+              <td class="p-3.5 text-zinc-400">Browser-native sharing: every shared link is a free referral</td>
+              <td class="p-3.5 text-zinc-300">Link view-to-signup rate</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Slide 13: 3-Year Strategic Roadmap -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="Roadmap">
+      <div class="mb-6">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">12 / Vision</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mt-2">From Tool to Essential Infrastructure</h2>
+        <p class="text-sm text-adobe-textMuted mt-1">Evolving from an agile canvas tool into the definitive operating system for digital creation.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div>
+            <div class="text-xs font-mono text-adobe-red font-bold mb-2 uppercase">Year 1: Launch &amp; Land</div>
+            <h3 class="text-lg font-bold text-white mb-3">The Creation Engine</h3>
+            <ul class="space-y-2 text-xs text-zinc-300">
+              <li>→ 10M free-tier user acquisition</li>
+              <li>→ Deep CC bundle integration (25M seats)</li>
+              <li>→ Core interactive block canvas engine</li>
+              <li>→ PQL-driven enterprise sales motion</li>
+            </ul>
+          </div>
+          <div class="mt-4 pt-4 border-t border-zinc-800 text-xs text-zinc-500 font-mono">Goal: M ARR</div>
+        </div>
+        <div class="glass-card-accent p-6 rounded-2xl flex flex-col justify-between">
+          <div>
+            <div class="text-xs font-mono text-blue-400 font-bold mb-2 uppercase">Year 2: Ecosystem &amp; API</div>
+            <h3 class="text-lg font-bold text-white mb-3">The Block Economy</h3>
+            <ul class="space-y-2 text-xs text-zinc-200">
+              <li>→ Stage Plugin API for 3rd-party community blocks</li>
+              <li>→ Live functional blocks (Stripe payments, Mapbox)</li>
+              <li>→ Direct GitHub &amp; Vercel deployment pipeline</li>
+              <li>→ Production React/Tailwind code export</li>
+            </ul>
+          </div>
+          <div class="mt-4 pt-4 border-t border-zinc-800 text-xs text-blue-400 font-mono">Goal: 3rd-Party App Store</div>
+        </div>
+        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between">
+          <div>
+            <div class="text-xs font-mono text-emerald-400 font-bold mb-2 uppercase">Year 3: Enterprise OS</div>
+            <h3 class="text-lg font-bold text-white mb-3">System of Record</h3>
+            <ul class="space-y-2 text-xs text-zinc-300">
+              <li>→ Full prompt → design → deploy infrastructure</li>
+              <li>→ Irreplaceable brand memory system for Fortune 500</li>
+              <li>→ Real-time autonomous marketing asset orchestration</li>
+              <li>→ Category dominance across all digital surfaces</li>
+            </ul>
+          </div>
+          <div class="mt-4 pt-4 border-t border-zinc-800 text-xs text-emerald-400 font-mono">Goal: B+ Category Value</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 14: Appendix: Hook Model & Behavioral Loop -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="Hook Model">
+      <div class="mb-6">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">Appendix A / Habit Formation</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mt-2">Nir Eyal's Hook Model for Stage</h2>
+        <p class="text-sm text-adobe-textMuted mt-1">Engineering an ingrained daily workflow loop for non-designers and product builders.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="glass-card p-6 rounded-2xl">
+          <div class="text-xs font-mono text-adobe-red font-bold mb-1">1. Trigger</div>
+          <h3 class="text-base font-bold text-white mb-2">Internal Pressure</h3>
+          <p class="text-xs text-zinc-300 leading-relaxed mb-4">
+            A founder or marketer urgently needs an investor mockup or social campaign by tomorrow. Stage is already top of mind.
+          </p>
+          <div class="text-xs font-mono text-blue-400 font-bold mb-1 pt-4 border-t border-zinc-800">2. Action</div>
+          <h3 class="text-base font-bold text-white mb-2">Frictionless Entry</h3>
+          <p class="text-xs text-zinc-300 leading-relaxed">
+            Zero install, zero credit card. Open browser tab → type prompt → instant visual generation in under 10 seconds.
+          </p>
+        </div>
+        <div class="glass-card p-6 rounded-2xl">
+          <div class="text-xs font-mono text-emerald-400 font-bold mb-1">3. Variable Reward</div>
+          <h3 class="text-base font-bold text-white mb-2">Creative Delight</h3>
+          <p class="text-xs text-zinc-300 leading-relaxed mb-4">
+            Seeing high-fidelity, polished visual interpretations of a raw idea immediately creates an urge to experiment and iterate.
+          </p>
+          <div class="text-xs font-mono text-purple-400 font-bold mb-1 pt-4 border-t border-zinc-800">4. Investment</div>
+          <h3 class="text-base font-bold text-white mb-2">Increasing Switching Cost</h3>
+          <p class="text-xs text-zinc-300 leading-relaxed">
+            User saves custom Brand DNA tokens, connects team members, and builds reusable blocks. Every investment cements Stage as their system of record.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 15: Appendix: Strategic Influencer Amplifiers -->
+    <section class="slide flex-col justify-center w-full max-w-5xl" data-title="Strategic Amplifiers">
+      <div class="mb-6">
+        <span class="tag-badge bg-zinc-800 text-zinc-400 border border-zinc-700">Appendix B / Dual Megaphones</span>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-white mt-2">Dual Megaphones: Head &amp; Heart</h2>
+        <p class="text-sm text-adobe-textMuted mt-1">
+          Bypassing dry corporate ads by speaking to analytical builders and culture-driving marketers simultaneously.
+        </p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="glass-card p-6 rounded-2xl border-t-2 border-t-blue-500">
+          <div class="text-xs font-mono text-blue-400 font-bold uppercase mb-2">The Head: Technical &amp; Workflow Authority</div>
+          <h3 class="text-xl font-bold text-white mb-2">Marques Brownlee (MKBHD)</h3>
+          <p class="text-xs text-zinc-300 leading-relaxed mb-4">
+            Validates Stage's technical superiority for analytical builders, proving how it resolves prompt fatigue by bridging AI speed with tactile slider precision.
+          </p>
+          <div class="bg-zinc-950 p-3 rounded-lg border border-zinc-800 text-xs text-zinc-400 italic">
+            "Stage is the first AI tool that doesn't punish you for wanting to move a button 10 pixels to the left."
+          </div>
+        </div>
+        <div class="glass-card p-6 rounded-2xl border-t-2 border-t-red-500">
+          <div class="text-xs font-mono text-adobe-red font-bold uppercase mb-2">The Heart: Entrepreneurial Agility</div>
+          <h3 class="text-xl font-bold text-white mb-2">Ryan Reynolds</h3>
+          <p class="text-xs text-zinc-300 leading-relaxed mb-4">
+            Validates business speed for founders and marketers—demonstrating how a wild creative idea turns into a live, brand-compliant campaign in 20 minutes without an external agency.
+          </p>
+          <div class="bg-zinc-950 p-3 rounded-lg border border-zinc-800 text-xs text-zinc-400 italic">
+            "We thought of the joke at 9:00 AM. By 9:25 AM, the billboard and social ads were shipped."
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 16: Closing Slide -->
+    <section class="slide flex-col justify-center items-center w-full max-w-4xl text-center" data-title="Thank You">
+      <div class="w-16 h-16 rounded-2xl bg-adobe-red flex items-center justify-center shadow-xl shadow-red-500/25 mb-8">
+        <svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M15.1 2H22V22L15.1 2ZM8.9 2H2V22L8.9 2ZM12 9.4L17.6 22H13.8L12 17.5L8.5 22H5.4L12 9.4Z"/>
+        </svg>
+      </div>
+      <h2 class="text-5xl md:text-6xl font-black text-white mb-4 tracking-tight">
+        Reclaim the Digital Canvas.
+      </h2>
+      <p class="text-xl text-zinc-400 mb-8 max-w-2xl">
+        Adobe Stage delivers the precision professionals expect with the velocity modern creation demands.
+      </p>
+      <div class="flex items-center gap-4">
+        <a href="https://adobestageproto.netlify.app/" target="_blank" class="bg-adobe-red hover:bg-adobe-darkRed text-white font-semibold px-6 py-3 rounded-full text-sm transition shadow-lg shadow-red-500/30 flex items-center gap-2">
+          Launch Live Prototype
+          <span>→</span>
+        </a>
+        <button onclick="goToSlide(0)" class="bg-adobe-card hover:bg-adobe-cardHover border border-adobe-border text-zinc-300 px-6 py-3 rounded-full text-sm transition">
+          Replay Deck (Key: Home)
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer Controls -->
+  <footer class="w-full flex items-center justify-between z-50 shrink-0 pt-4 border-t border-adobe-borderSubtle text-xs text-adobe-textMuted">
+    <div class="flex items-center gap-2">
+      <span class="hidden md:inline">Navigation:</span>
+      <kbd class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-zinc-300 font-mono">←</kbd>
+      <kbd class="bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded text-zinc-300 font-mono">→</kbd>
+      <span class="text-zinc-500 hidden sm:inline ml-1">(or Space / Click)</span>
+    </div>
+
+    <!-- Progress Dots -->
+    <div id="dot-indicators" class="flex items-center gap-1.5"></div>
+
+    <div class="flex items-center gap-2">
+      <button id="prev-btn" onclick="prevSlide()" class="p-2 rounded-lg bg-adobe-card hover:bg-adobe-cardHover border border-adobe-border text-zinc-300 hover:text-white transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <button id="next-btn" onclick="nextSlide()" class="p-2 rounded-lg bg-adobe-card hover:bg-adobe-cardHover border border-adobe-border text-zinc-300 hover:text-white transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+  </footer>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    let currentSlide = 0;
+
+    const currentNumEl = document.getElementById('current-slide-num');
+    const totalNumEl = document.getElementById('total-slides-num');
+    const dotContainer = document.getElementById('dot-indicators');
+
+    totalNumEl.innerText = totalSlides;
+
+    // Create dots
+    slides.forEach((slide, idx) => {
+      const dot = document.createElement('button');
+      dot.className = ;
+      dot.title = slide.getAttribute('data-title') || ;
+      dot.onclick = () => goToSlide(idx);
+      dotContainer.appendChild(dot);
+    });
+
+    function updateSlide() {
+      slides.forEach((slide, index) => {
+        if (index === currentSlide) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+      currentNumEl.innerText = currentSlide + 1;
+
+      // Update dots
+      const dots = dotContainer.querySelectorAll('button');
+      dots.forEach((dot, idx) => {
+        if (idx === currentSlide) {
+          dot.className = 'w-6 h-2 rounded-full bg-adobe-red transition-all';
+        } else {
+          dot.className = 'w-2 h-2 rounded-full bg-zinc-700 hover:bg-zinc-500 transition-all';
+        }
+      });
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides - 1) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+
+    function goToSlide(index) {
+      if (index >= 0 && index < totalSlides) {
+        currentSlide = index;
+        updateSlide();
+      }
+    }
+
+    // Keyboard navigation
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        prevSlide();
+      } else if (e.key === 'Home') {
+        goToSlide(0);
+      } else if (e.key === 'End') {
+        goToSlide(totalSlides - 1);
+      }
+    });
+
+    // Initialize
+    updateSlide();
+  </script>
+</body>
+</html>
