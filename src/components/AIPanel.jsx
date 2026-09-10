@@ -19,7 +19,7 @@ export default function AIPanel({
   prompt, setPrompt, onGenerate, isGenerating,
   fidelity, setFidelity, creativity, setCreativity,
   workspace, otherWorkspace, onSwitchWorkspace,
-  message, crossSurface, connected, providerName, selectionLabel,
+  message, messageIsError, crossSurface, connected, providerName, selectionLabel,
 }) {
   if (!open) {
     return (
@@ -133,7 +133,14 @@ export default function AIPanel({
 
       <div className="px-3.5 h-9 bg-spectrum-800 border-t border-spectrum-400 flex items-center justify-between gap-3 text-[11px]">
         <div className="flex items-center gap-2 min-w-0">
-          {message && <span className="text-spectrum-100 truncate">{message}</span>}
+          {message && (
+            <span
+              title={message}
+              className={`truncate ${messageIsError ? 'text-amber-400' : 'text-spectrum-100'}`}
+            >
+              {messageIsError ? '⚠ ' : ''}{message}
+            </span>
+          )}
           {crossSurface && (
             <button
               onClick={onSwitchWorkspace}
@@ -144,8 +151,8 @@ export default function AIPanel({
           )}
         </div>
         <span className="flex items-center gap-1.5 shrink-0 text-spectrum-200">
-          <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-          {connected ? `${providerName} connected` : 'Demo mode'}
+          <span className={`w-1.5 h-1.5 rounded-full ${connected && !messageIsError ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          {!connected ? 'Demo mode' : messageIsError ? `${providerName} failing` : `${providerName} connected`}
         </span>
       </div>
     </div>

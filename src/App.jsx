@@ -5,8 +5,8 @@ import {
   Undo2, Redo2, Maximize2,
 } from 'lucide-react';
 
-import Onboarding, { STORAGE_KEY, API_KEY_STORAGE, API_PROVIDER_STORAGE } from './components/Onboarding';
-import { generateWithAI } from './services/aiService';
+import Onboarding, { STORAGE_KEY, API_KEY_STORAGE, API_PROVIDER_STORAGE, API_MODEL_STORAGE } from './components/Onboarding';
+import { generateWithAI, DEFAULT_MODELS } from './services/aiService';
 import UIUXArtboard from './components/UIUXArtboard';
 import GraphicArtboard from './components/GraphicArtboard';
 import LayersPanel from './components/LayersPanel';
@@ -38,11 +38,13 @@ export default function App() {
   const [creativity, setCreativity] = useState(30);
   const [isGenerating, setIsGenerating] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageIsError, setMessageIsError] = useState(false);
   const [crossSurface, setCrossSurface] = useState(false);
 
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem(STORAGE_KEY));
   const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) || '');
   const [provider, setProvider] = useState(() => localStorage.getItem(API_PROVIDER_STORAGE) || 'gemini');
+  const [model, setModel] = useState(() => localStorage.getItem(API_MODEL_STORAGE) || '');
 
   // Live pointer gesture (drag or corner resize). Held in a ref so mousemove
   // never re-renders on its own.
@@ -283,11 +285,12 @@ export default function App() {
 
     setIsGenerating(true);
     setMessage('');
+    setMessageIsError(false);
     setCrossSurface(false);
 
     try {
       const result = await generateWithAI(input, {
-        apiKey, provider, workspace,
+        apiKey, provider, model, workspace,
         selectedElement: labelOf(visibleSelection, doc),
         fidelity, creativity,
       });
@@ -315,9 +318,11 @@ export default function App() {
       // A full concept rewrites both surfaces, so tell the user the surface
       // they are not looking at also changed.
       setCrossSurface(Boolean(result.prototype));
+      setMessageIsError(Boolean(result.error));
       setMessage(result.message || 'Applied.');
-    } catch {
-      setMessage('Generation failed. Check the console and try again.');
+    } catch (err) {
+      setMessageIsError(true);
+      setMessage(`Generation failed: ${err.message}`);
     }
 
     setIsGenerating(false);
@@ -394,10 +399,11 @@ export default function App() {
       {showOnboarding && (
         <Onboarding
           hasKey={Boolean(apiKey)}
-          onComplete={({ apiKey: key, provider: p }) => {
+          onComplete={({ apiKey: key, provider: p, model: m }) => {
             setShowOnboarding(false);
             setApiKey(key);
             setProvider(p);
+            setModel(m);
           }}
         />
       )}
@@ -574,9 +580,10 @@ export default function App() {
               otherWorkspace={otherWorkspace}
               onSwitchWorkspace={() => switchWorkspace(otherWorkspace)}
               message={message}
+              messageIsError={messageIsError}
               crossSurface={crossSurface}
               connected={Boolean(apiKey)}
-              providerName={provider === 'gemini' ? 'Gemini' : 'OpenAI'}
+              providerName={model || DEFAULT_MODELS[provider]}
               selectionLabel={visibleSelection ? labelOf(visibleSelection, doc) : 'no selection'}
             />
           </div>

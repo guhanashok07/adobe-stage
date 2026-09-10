@@ -87,7 +87,9 @@ Brand DNA library integration, multi-user collaboration, export to code and asse
 
 Stage never sees your key and there is no Stage server to send it to. Paste a Gemini or OpenAI key into the **Guide & key** dialog and it is written to your browser's local storage, then sent only to that provider's own endpoint. Clear the field and continue to remove it.
 
-Without a key the prompt bar still works. It falls back to five hand-written archetypes covering crypto, music, fitness, ecommerce, and SaaS, plus theme and style commands. Every screenshot in the deck was produced in demo mode.
+You can also override the model id in that dialog. Leave it blank and Stage uses `gemini-2.5-flash` or `gpt-5.6-luna`. This field exists because it bit me: the prototype originally shipped `gemini-2.0-flash` and `gpt-4o-mini`, both of which have since been retired, and because a failed call quietly falls back to demo mode the symptom was not an error message. It was a prompt bar that appeared to do nothing at all. If generation stops working, check the model id first. The Stage AI footer now shows the provider's actual error in amber, and the status pill tells you which model it is calling.
+
+Without a key the prompt bar still works. It scores your prompt against twelve domains covering banking, crypto, music, fitness, ecommerce, SaaS, travel, food, education, social, real estate, and hiring, and when none of them fit it builds an archetype out of your own words. Ask it for a plant care reminder tool and you get PlantCare, not a placeholder. It is an approximation and it says so, but it is enough to walk the whole demo. Every screenshot in the deck was produced in demo mode.
 
 ---
 

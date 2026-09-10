@@ -1,5 +1,18 @@
 // AI Service - Calls Gemini or OpenAI to interpret design prompts
 // Falls back to deterministic demo responses when no API key is provided
+//
+// Model ids go stale fast. This prototype originally shipped
+// gemini-2.0-flash and gpt-4o-mini; both were retired, and because a failed
+// call falls back to demo mode, the symptom was "the prompt bar does
+// nothing" rather than a visible error. The ids below are overridable from
+// the Guide & key dialog so a retirement is a settings change, not a commit.
+//   https://ai.google.dev/gemini-api/docs/models
+//   https://developers.openai.com/api/docs/models
+
+export const DEFAULT_MODELS = {
+  gemini: 'gemini-2.5-flash',
+  openai: 'gpt-5.6-luna',
+};
 
 const SYSTEM_PROMPT = `You are an AI design assistant inside "Adobe Stage", an AI-first design tool prototype.
 The user is looking at a canvas. When they give a prompt, you decide what visual changes to make to create or adapt the prototype.
@@ -49,6 +62,7 @@ export async function generateWithAI(prompt, options = {}) {
     console.error('AI API error, falling back to demo mode:', err);
     return {
       ...fallbackGenerate(prompt),
+      error: true,
       message: `${err.message}. Showed a demo result instead.`
     };
   }
@@ -67,7 +81,8 @@ function buildContext(prompt, { workspace, selectedElement, fidelity = 80, creat
 }
 
 async function callGemini(prompt, apiKey, options) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const model = options.model?.trim() || DEFAULT_MODELS.gemini;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -106,13 +121,13 @@ async function callOpenAI(prompt, apiKey, options) {
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: options.model?.trim() || DEFAULT_MODELS.openai,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildContext(prompt, options) }
       ],
       temperature: Math.min(1, (options.creativity ?? 30) / 100 + 0.15),
-      max_tokens: 1024,
+      max_completion_tokens: 1024,
       response_format: { type: 'json_object' }
     })
   });

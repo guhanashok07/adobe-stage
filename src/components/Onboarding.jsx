@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DEFAULT_MODELS } from '../services/aiService';
 import {
   Sparkles, Eye, EyeOff, ArrowRight, ArrowLeft, Lock,
   MousePointer2, Type, SlidersHorizontal, Undo2, Layers, Palette,
@@ -7,6 +8,7 @@ import {
 export const STORAGE_KEY = 'adobe-stage-onboarding-done';
 export const API_KEY_STORAGE = 'adobe-stage-api-key';
 export const API_PROVIDER_STORAGE = 'adobe-stage-api-provider';
+export const API_MODEL_STORAGE = 'adobe-stage-api-model';
 
 // The guided demo. This is the product argument in four moves: prompt once,
 // get both surfaces, then finish the last 10% by hand without re-prompting.
@@ -61,18 +63,25 @@ export default function Onboarding({ onComplete, hasKey }) {
   const [step, setStep] = useState(0);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) || '');
   const [provider, setProvider] = useState(() => localStorage.getItem(API_PROVIDER_STORAGE) || 'gemini');
+  const [model, setModel] = useState(() => localStorage.getItem(API_MODEL_STORAGE) || '');
   const [showKey, setShowKey] = useState(false);
 
   const finish = (key) => {
     const trimmed = (key ?? apiKey).trim();
+    const trimmedModel = model.trim();
+
     if (trimmed) {
       localStorage.setItem(API_KEY_STORAGE, trimmed);
       localStorage.setItem(API_PROVIDER_STORAGE, provider);
     } else {
       localStorage.removeItem(API_KEY_STORAGE);
     }
+
+    if (trimmedModel) localStorage.setItem(API_MODEL_STORAGE, trimmedModel);
+    else localStorage.removeItem(API_MODEL_STORAGE);
+
     localStorage.setItem(STORAGE_KEY, 'true');
-    onComplete({ apiKey: trimmed, provider });
+    onComplete({ apiKey: trimmed, provider, model: trimmedModel });
   };
 
   const steps = [
@@ -188,6 +197,25 @@ export default function Onboarding({ onComplete, hasKey }) {
             >
               {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-medium text-spectrum-100 mb-1.5 block">
+              Model <span className="text-spectrum-200">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') finish(); }}
+              placeholder={DEFAULT_MODELS[provider]}
+              className="w-full bg-spectrum-800 border border-spectrum-400 rounded-[4px] px-3 h-9 text-[13px] text-spectrum-50 placeholder-spectrum-200/60 outline-none focus:border-accent transition-colors font-mono"
+            />
+            <p className="text-[11px] text-spectrum-200 leading-relaxed mt-1.5">
+              Leave blank for <span className="font-mono text-spectrum-100">{DEFAULT_MODELS[provider]}</span>.
+              Providers retire model ids without much warning, so if generation starts failing, the id is the
+              first thing to check. The error is shown in the Stage AI footer.
+            </p>
           </div>
 
           <p className="text-[11px] text-spectrum-200 leading-relaxed">
