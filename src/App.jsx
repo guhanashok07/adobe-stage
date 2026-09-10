@@ -7,6 +7,8 @@ import {
   Wand2, CornerUpLeft, CornerUpRight, Check, PanelRight,
   Minus, CreditCard, ArrowRightLeft, PieChart, Search, Bell
 } from 'lucide-react';
+import Onboarding, { STORAGE_KEY, API_KEY_STORAGE, API_PROVIDER_STORAGE } from './components/Onboarding';
+import { generateWithAI } from './services/aiService';
 
 const App = () => {
   const [showAIPanel, setShowAIPanel] = useState(true);
@@ -26,11 +28,23 @@ const App = () => {
   const [canvasTheme, setCanvasTheme] = useState('light');
   const [ctaStyle, setCtaStyle] = useState('blue'); // 'blue' or 'black'
   const [gdStyle, setGdStyle] = useState('modern'); // 'modern' or 'cyberpunk'
+  const [aiMessage, setAiMessage] = useState(''); // status message from AI
   
   const [selectedElement, setSelectedElement] = useState('hero'); // 'hero', 'card', 'gdHeadline', 'gdShape', or dynamic ID
 
   // Dynamic Custom Elements State
   const [customElements, setCustomElements] = useState([]);
+
+  // Onboarding & AI Config
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem(STORAGE_KEY));
+  const [aiApiKey, setAiApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) || '');
+  const [aiProvider, setAiProvider] = useState(() => localStorage.getItem(API_PROVIDER_STORAGE) || 'gemini');
+
+  const handleOnboardingComplete = ({ apiKey, provider }) => {
+    setShowOnboarding(false);
+    setAiApiKey(apiKey);
+    setAiProvider(provider);
+  };
 
   // Dragging & Resizing State
   const [positions, setPositions] = useState({
@@ -85,28 +99,37 @@ const App = () => {
     setSelectedElement(id);
   };
 
-  // Simulated AI Generation
-  const handleGenerate = (customPrompt = prompt) => {
+  // AI Generation (real API or fallback demo)
+  const handleGenerate = async (customPrompt = prompt) => {
     if (!customPrompt) return;
     setIsGenerating(true);
-    
-    // Simulate AI thinking time
-    setTimeout(() => {
-      setIsGenerating(false);
-      const lowerPrompt = customPrompt.toLowerCase();
-      
-      // Theme prompt
-      if (lowerPrompt.includes('dark mode')) setCanvasTheme('dark');
-      else if (lowerPrompt.includes('light mode')) setCanvasTheme('light');
-      
-      // UI/UX Specific prompt
-      if (lowerPrompt.includes('black') || lowerPrompt.includes('transfer button')) setCtaStyle('black');
-      
-      // Graphic Design Specific prompt
-      if (lowerPrompt.includes('cyberpunk') || lowerPrompt.includes('neon')) setGdStyle('cyberpunk');
+    setAiMessage('');
 
-      setPrompt(''); // clear after generation
-    }, 1500);
+    try {
+      const result = await generateWithAI(customPrompt, {
+        apiKey: aiApiKey,
+        provider: aiProvider,
+        workspace: activeWorkspace,
+        selectedElement
+      });
+
+      // Apply changes from AI response
+      if (result.theme) setCanvasTheme(result.theme);
+      if (result.ctaStyle) setCtaStyle(result.ctaStyle);
+      if (result.gdStyle) setGdStyle(result.gdStyle);
+
+      // Add any new elements the AI requested
+      if (result.addElements && result.addElements.length > 0) {
+        result.addElements.forEach(el => addElement(el.type || 'shape'));
+      }
+
+      if (result.message) setAiMessage(result.message);
+    } catch (err) {
+      setAiMessage('Something went wrong. Try again.');
+    }
+
+    setIsGenerating(false);
+    setPrompt('');
   };
 
   const handleSuggestionClick = (text) => {
@@ -139,6 +162,9 @@ const App = () => {
       onMouseLeave={handleMouseUp}
     >
       
+      {/* Onboarding Overlay */}
+      {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
+
       {/* Top Navigation Bar */}
       <header className="h-12 border-b border-[#333333] bg-[#252525] flex items-center justify-between px-3 shrink-0 relative z-40">
         <div className="flex items-center gap-4">
@@ -204,11 +230,11 @@ const App = () => {
           
           <div className="h-4 w-px bg-[#444444] mx-1"></div>
           
-          <button className="p-1.5 hover:bg-[#333333] rounded text-gray-300 transition-colors" title="Present">
+          <button className="p-1.5 rounded text-gray-300 transition-colors opacity-40 cursor-not-allowed" title="Present (Coming Soon)">
             <Play size={16} fill="currentColor" />
           </button>
           
-          <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-sm">
+          <button className="flex items-center gap-2 bg-blue-600/40 text-white/50 px-3 py-1.5 rounded-md text-sm font-medium cursor-not-allowed shadow-sm" title="Share (Coming Soon)">
             <Share size={14} /> Share
           </button>
 
@@ -230,10 +256,10 @@ const App = () => {
         <ToolButton icon={<MousePointer2 size={16} />} active />
         <ToolButton icon={<Square size={16} />} onClick={() => addElement('shape')} title="Add Shape" />
         <ToolButton icon={<Type size={16} />} onClick={() => addElement('text')} title="Add Text" />
-        <ToolButton icon={<Layout size={16} />} />
-        <ToolButton icon={<ImageIcon size={16} />} />
+        <ToolButton icon={<Layout size={16} />} disabled title="Auto Layout (Coming Soon)" />
+        <ToolButton icon={<ImageIcon size={16} />} disabled title="Image Upload (Coming Soon)" />
         <div className="w-px h-4 bg-[#444444] mx-2"></div>
-        <ToolButton icon={<Folder size={16} />} title="Creative Cloud Libraries" />
+        <ToolButton icon={<Folder size={16} />} disabled title="Creative Cloud Libraries (Coming Soon)" />
       </div>
 
       {/* Main Workspace */}
@@ -248,7 +274,7 @@ const App = () => {
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Palette size={12} /> Active Brand
                 </span>
-                <button className="p-1 hover:bg-[#333333] rounded transition-colors"><Settings size={12} /></button>
+                <button className="p-1 rounded transition-colors opacity-40 cursor-not-allowed" title="Brand Settings (Coming Soon)"><Settings size={12} /></button>
               </div>
               <div className="bg-[#1e1e1e] border border-[#333333] rounded-md p-2 cursor-pointer hover:border-blue-500/50 transition-colors group">
                 <div className="text-sm font-medium text-gray-200 mb-1.5 group-hover:text-blue-400 transition-colors">Acme Corp Global</div>
@@ -808,8 +834,16 @@ const App = () => {
                   </div>
                 </div>
                 
-                <div className="px-4 py-2 bg-[#1a1a1a] border-t border-[#333] flex justify-end items-center text-xs text-gray-500">
-                  <span className="flex items-center gap-1 shrink-0 ml-4"><Sparkles size={10} className="text-purple-500"/> Powered by Firefly</span>
+                <div className="px-4 py-2 bg-[#1a1a1a] border-t border-[#333] flex justify-between items-center text-xs text-gray-500">
+                  {aiMessage ? (
+                    <span className="text-gray-400 truncate max-w-[350px]">{aiMessage}</span>
+                  ) : (
+                    <span></span>
+                  )}
+                  <span className="flex items-center gap-1 shrink-0 ml-4">
+                    <span className={`w-1.5 h-1.5 rounded-full ${aiApiKey ? 'bg-green-400' : 'bg-yellow-500'}`}></span>
+                    {aiApiKey ? `${aiProvider === 'gemini' ? 'Gemini' : 'OpenAI'} connected` : 'Demo mode'}
+                  </span>
                 </div>
               </div>
             )}
@@ -823,8 +857,8 @@ const App = () => {
             {/* Tabs */}
             <div className="flex border-b border-[#333333]">
               <button className="flex-1 py-2 text-sm font-medium text-white border-b-2 border-blue-500 transition-colors">Design</button>
-              <button className="flex-1 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors">Prototype</button>
-              <button className="flex-1 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors">Inspect</button>
+              <button className="flex-1 py-2 text-sm font-medium text-gray-600 cursor-not-allowed transition-colors" title="Coming Soon">Prototype</button>
+              <button className="flex-1 py-2 text-sm font-medium text-gray-600 cursor-not-allowed transition-colors" title="Coming Soon">Inspect</button>
             </div>
 
             <div className="p-4 space-y-6 overflow-y-auto h-[calc(100vh-100px)]">
@@ -921,11 +955,12 @@ const App = () => {
 };
 
 // UI Helper Components
-const ToolButton = ({ icon, active, title, onClick }) => (
+const ToolButton = ({ icon, active, title, onClick, disabled }) => (
   <button 
     title={title}
-    onClick={onClick}
+    onClick={disabled ? undefined : onClick}
     className={`p-2 rounded-md transition-colors ${
+      disabled ? 'text-gray-600 cursor-not-allowed opacity-40' :
       active ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-100 hover:bg-[#333333]'
     }`}
   >
