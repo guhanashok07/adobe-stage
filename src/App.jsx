@@ -284,6 +284,22 @@ export default function App() {
     }));
   };
 
+  const setStat = (index, field, value) => {
+    commit((d) => ({
+      ...d,
+      content: {
+        ...d.content,
+        stats: (d.content.stats || []).map((st, i) => (i === index ? { ...st, [field]: value } : st)),
+      },
+    }));
+  };
+
+  const setChartTitle = (value) => {
+    commit((d) => (d.content.chart
+      ? { ...d, content: { ...d.content, chart: { ...d.content.chart, title: value } } }
+      : d));
+  };
+
   const setTheme = (theme) => commit((d) => (d.theme === theme ? d : { ...d, theme }));
 
   const addElement = (type) => {
@@ -335,7 +351,10 @@ export default function App() {
             items: items?.length ? items : d.content.items,
           };
           // A regenerated concept starts from a clean layout.
-          next.positions = { hero: { x: 0, y: 0 }, card: { x: 0, y: 0 }, gdHeadline: { x: 0, y: 0 }, gdShape: { x: 0, y: 0 } };
+          next.positions = {
+            stats: { x: 0, y: 0 }, hero: { x: 0, y: 0 }, card: { x: 0, y: 0 }, chart: { x: 0, y: 0 },
+            gdHeadline: { x: 0, y: 0 }, gdShape: { x: 0, y: 0 },
+          };
           next.sizes = {};
           next.fills = {};
         }
@@ -414,6 +433,8 @@ export default function App() {
     onResizeStart: startResize,
     onContent: setContent,
     onItem: setItem,
+    onStat: setStat,
+    onChartTitle: setChartTitle,
   };
 
   return (

@@ -32,6 +32,8 @@ You MUST respond with ONLY a valid JSON object (no markdown formatting, no code 
     "statValue": "Key metric value (e.g. $24,500.00, 14.8 hrs, 2,340 kcal)",
     "ctaLabel": "Action button text (e.g. Transfer, Play Now, Log Workout, Swap)",
     "activityTitle": "Section title (e.g. Recent Activity, Top Tracks, Workout Log)",
+    "stats": [ { "label": "Short KPI label", "value": "Short value" } ],
+    "chart": { "title": "Chart title with a time frame", "series": [7 numbers between 5 and 100] },
     "items": [
       { "title": "Item 1 title", "sub": "Item 1 subtitle/date", "amount": "+/- metric or status" },
       { "title": "Item 2 title", "sub": "Item 2 subtitle/date", "amount": "+/- metric or status" }
@@ -48,7 +50,9 @@ Rules:
 - navItems and searchPlaceholder MUST match the domain. A shopping app does not have a "Transfers" tab and does not "Search transactions". Getting this wrong makes the result look like a banking template with the words swapped.
 - Set "theme" to "dark" or "light" if the domain or prompt calls for it.
 - Set "gdStyle" to "cyberpunk" for tech/cyber/futuristic prompts, or "modern" otherwise.
-- Keep text concise and realistic.`;
+- Keep text concise and realistic.
+- "items" should hold 2 to 4 rows. "stats" should hold 0 to 3 KPI tiles. Vary these between domains: a dashboard that always has exactly two rows and three tiles looks templated.
+- Set "chart" to null when a chart would not belong on this screen, otherwise give it a real title and 7 plausible values. The series is a shape, not exact data.`;
 
 export async function generateWithAI(prompt, options = {}) {
   const { apiKey, provider } = options;
@@ -153,10 +157,29 @@ function parseAIResponse(text) {
   const parsed = JSON.parse(cleaned);
 
   if (parsed.prototype) {
-    const nav = parsed.prototype.navItems;
-    parsed.prototype.navItems = Array.isArray(nav) && nav.length
-      ? nav.slice(0, 4).map(String)
+    const proto = parsed.prototype;
+
+    const nav = proto.navItems;
+    proto.navItems = Array.isArray(nav) && nav.length ? nav.slice(0, 4).map(String) : undefined;
+
+    proto.stats = Array.isArray(proto.stats)
+      ? proto.stats
+          .filter((s) => s && (s.label || s.value))
+          .slice(0, 3)
+          .map((s) => ({ label: String(s.label ?? ''), value: String(s.value ?? '') }))
       : undefined;
+
+    // A chart needs a usable series; anything else is dropped rather than
+    // rendered as an empty box.
+    const series = proto.chart?.series;
+    proto.chart = Array.isArray(series) && series.length >= 3
+      ? {
+          title: String(proto.chart.title || 'Trend'),
+          series: series.slice(0, 12).map((n) => Math.max(4, Math.min(100, Number(n) || 0))),
+        }
+      : null;
+
+    if (Array.isArray(proto.items)) proto.items = proto.items.slice(0, 4);
   }
 
   return {
@@ -194,6 +217,8 @@ const DOMAINS = [
         { title: 'Ethereum (ETH)', sub: 'Staked via Lido', amount: '+3.4% 24h' },
         { title: 'Solana (SOL)', sub: 'Limit order executed', amount: '+$1,450.00' },
       ],
+      stats: [{ label: '24h Volume', value: '$1.2M' }, { label: 'Staked', value: '62%' }, { label: 'Positions', value: '14' }],
+      chart: { title: 'Portfolio Value, 7 Days', series: [48, 62, 44, 78, 71, 95, 83] },
       gdBrand: 'ORBIT', gdHeadline: 'DECENTRALIZED LIQUIDITY AT SCALE.',
     },
   },
@@ -212,6 +237,8 @@ const DOMAINS = [
         { title: 'Midnight City (Remix)', sub: 'M83 · Electronic', amount: '1.2M plays' },
         { title: 'Starry Night', sub: 'Peggy Gou · House', amount: '850k plays' },
       ],
+      stats: [{ label: 'Tracks', value: '1,204' }, { label: 'Artists', value: '318' }],
+      chart: { title: 'Listening Hours, This Week', series: [22, 41, 35, 58, 47, 88, 64] },
       gdBrand: 'SOUND', gdHeadline: 'HEAR THE NEXT WAVE.',
     },
   },
@@ -230,6 +257,8 @@ const DOMAINS = [
         { title: '5km Interval Run', sub: 'Pace 4:45/km · Outdoors', amount: '320 kcal' },
         { title: 'Upper Body Strength', sub: 'Completed 5 of 5 sets', amount: '45 mins' },
       ],
+      stats: [{ label: 'Steps', value: '12,480' }, { label: 'Streak', value: '9 days' }, { label: 'Resting HR', value: '54 bpm' }],
+      chart: { title: 'Active Minutes, Last 7 Days', series: [35, 52, 28, 64, 71, 45, 88] },
       gdBrand: 'PULSE', gdHeadline: 'PEAK HUMAN PERFORMANCE.',
     },
   },
@@ -248,6 +277,8 @@ const DOMAINS = [
         { title: 'Minimalist Wool Coat', sub: 'Express shipping · Tokyo', amount: '+$380' },
         { title: 'Mechanical Keyboard v2', sub: 'Order #4892 · Paid', amount: '+$210' },
       ],
+      stats: [{ label: 'Orders', value: '312' }, { label: 'Avg Basket', value: '$61' }, { label: 'Refunds', value: '1.4%' }],
+      chart: { title: 'Revenue, Last 7 Days', series: [44, 61, 52, 78, 66, 91, 74] },
       gdBrand: 'AURA', gdHeadline: 'CURATED LUXURY COMMERCE.',
     },
   },
@@ -266,6 +297,8 @@ const DOMAINS = [
         { title: 'Auth Service API', sub: '18ms latency · 99.99% uptime', amount: 'Passed' },
         { title: 'Ingestion Pipeline', sub: 'Processed 2.4M records', amount: 'Healthy' },
       ],
+      stats: [{ label: 'Uptime', value: '99.99%' }, { label: 'p95', value: '142ms' }, { label: 'Errors', value: '0.02%' }],
+      chart: { title: 'Requests per Minute', series: [58, 64, 49, 72, 81, 68, 77] },
       gdBrand: 'METRICS', gdHeadline: 'OBSERVABILITY THAT SCALES.',
     },
   },
@@ -284,6 +317,8 @@ const DOMAINS = [
         { title: 'Apple Store', sub: 'Today, 2:45 PM', amount: '-$999' },
         { title: 'Upwork Inc.', sub: 'Yesterday', amount: '+$2,400' },
       ],
+      stats: [{ label: 'Income', value: '$8,240' }, { label: 'Spending', value: '$3,110' }, { label: 'Saved', value: '38%' }],
+      chart: { title: 'Cash Flow, Last 7 Days', series: [42, 58, 35, 71, 64, 88, 52] },
       gdBrand: 'ACME', gdHeadline: 'THE FUTURE OF DIGITAL BANKING.',
     },
   },
@@ -302,6 +337,8 @@ const DOMAINS = [
         { title: 'Lisbon → Reykjavík', sub: 'TAP 1042 · Seat 14A', amount: '12 Mar' },
         { title: 'Sandhotel, Reykjavík', sub: '3 nights · Breakfast', amount: '+$412' },
       ],
+      stats: [{ label: 'Trips', value: '4 booked' }, { label: 'Miles', value: '18,420' }],
+      chart: { title: 'Spend by Trip', series: [30, 72, 45, 61, 88, 39, 54] },
       gdBrand: 'WAYFARE', gdHeadline: 'GO SOMEWHERE THAT CHANGES YOU.',
     },
   },
@@ -320,6 +357,8 @@ const DOMAINS = [
         { title: 'Table 12 · Tasting Menu', sub: 'Fired 4 min ago', amount: 'On pass' },
         { title: 'Delivery · Ramen x2', sub: 'Courier assigned', amount: '+$38' },
       ],
+      stats: [{ label: 'Avg Ticket', value: '$48' }, { label: 'Wait', value: '11 min' }, { label: 'Covers', value: '312' }],
+      chart: { title: 'Covers by Service, This Week', series: [40, 55, 62, 71, 94, 88, 47] },
       gdBrand: 'FORK', gdHeadline: 'EAT LIKE YOU MEAN IT.',
     },
   },
@@ -338,6 +377,8 @@ const DOMAINS = [
         { title: 'Statistics · Module 4', sub: 'Due Friday', amount: '2 hrs left' },
         { title: 'Peer Review Submitted', sub: 'Design Thinking', amount: 'Graded' },
       ],
+      stats: [{ label: 'Modules', value: '12 of 18' }, { label: 'Avg Grade', value: 'A-' }],
+      chart: { title: 'Study Hours, Last 7 Days', series: [25, 48, 31, 66, 52, 40, 73] },
       gdBrand: 'LUMEN', gdHeadline: 'LEARN THE THING THAT COMPOUNDS.',
     },
   },
@@ -356,6 +397,8 @@ const DOMAINS = [
         { title: 'Ravi replied to your thread', sub: '18 min ago', amount: '24 likes' },
         { title: 'Design Weekly · New drop', sub: 'From a group you follow', amount: 'Unread' },
       ],
+      stats: [{ label: 'Followers', value: '12.4k' }, { label: 'Engagement', value: '6.8%' }, { label: 'Posts', value: '48' }],
+      chart: { title: 'Reach, Last 7 Days', series: [52, 38, 64, 71, 59, 86, 92] },
       gdBrand: 'COMMONS', gdHeadline: 'BUILT BY THE PEOPLE IN IT.',
     },
   },
@@ -374,6 +417,8 @@ const DOMAINS = [
         { title: '14 Alder Street, Unit 3B', sub: 'Lease signed · 12 months', amount: '+$2,150' },
         { title: 'Maintenance · Boiler', sub: 'Contractor scheduled', amount: '-$480' },
       ],
+      stats: [{ label: 'Occupancy', value: '94%' }, { label: 'Units', value: '38' }, { label: 'Arrears', value: '$2,100' }],
+      chart: { title: 'Rent Collected, Last 6 Months', series: [78, 82, 74, 88, 91, 86, 90] },
       gdBrand: 'KEYSTONE', gdHeadline: 'EVERY DOOR, ACCOUNTED FOR.',
     },
   },
@@ -392,6 +437,8 @@ const DOMAINS = [
         { title: 'Senior PM · Final round', sub: 'Panel feedback complete', amount: 'Decide' },
         { title: 'Design Intern · Screen', sub: '12 new applications', amount: 'New' },
       ],
+      stats: [{ label: 'Open Roles', value: '11' }, { label: 'Time to Hire', value: '24 days' }, { label: 'Offer Rate', value: '68%' }],
+      chart: { title: 'Applications, Last 7 Days', series: [34, 58, 47, 72, 64, 51, 80] },
       gdBrand: 'SHORTLIST', gdHeadline: 'HIRE THE ONE, NOT THE HUNDRED.',
     },
   },
@@ -483,6 +530,12 @@ function deriveFromPrompt(prompt) {
 
   const noun = cap(words[0]);
 
+  // Vary the shape from the prompt itself, so two different unknown prompts
+  // do not produce byte-identical layouts.
+  const spread = words.join('').length;
+  const statCount = spread % 3 === 0 ? 3 : (spread % 3) + 1;
+  const series = Array.from({ length: 7 }, (_, i) => 25 + ((spread * (i + 3) * 7) % 70));
+
   return {
     appName,
     navItems: ['Overview', `${noun}s`, 'Activity', 'Settings'],
@@ -496,6 +549,12 @@ function deriveFromPrompt(prompt) {
       { title: `${noun} created`, sub: 'Today, 9:12 AM', amount: '+18%' },
       { title: `${subject} review`, sub: 'Awaiting approval', amount: 'Pending' },
     ],
+    stats: [
+      { label: 'Active', value: `${240 + (spread % 700)}` },
+      { label: 'This Week', value: `+${8 + (spread % 40)}%` },
+      { label: `Open ${noun}s`, value: `${3 + (spread % 24)}` },
+    ].slice(0, statCount),
+    chart: { title: `${titleCase(words.slice(0, 2))}, Last 7 Days`, series },
     gdBrand: (words[0] || 'stage').toUpperCase().slice(0, 10),
     gdHeadline: `${subject.toUpperCase()}, DONE PROPERLY.`,
   };

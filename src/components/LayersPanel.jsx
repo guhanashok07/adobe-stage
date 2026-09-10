@@ -44,6 +44,16 @@ export default function LayersPanel({ doc, workspace, selectedId, onSelect }) {
             <LayerItem name="App Dashboard Canvas" type="frame" expanded>
               <LayerItem name="App Sidebar Nav" type="group" />
               <LayerItem name="Top Search Header" type="group" />
+              {(doc.content.stats?.length > 0) && (
+                <LayerItem
+                  name="Metric Row" type="group" expanded
+                  selected={selectedId === 'stats'} onClick={() => onSelect('stats')}
+                >
+                  {doc.content.stats.map((st, i) => (
+                    <LayerItem key={i} name={st.label} type="component" />
+                  ))}
+                </LayerItem>
+              )}
               <LayerItem
                 name={doc.content.statLabel || 'Balance Widget'} type="group" expanded
                 selected={selectedId === 'hero'} onClick={() => onSelect('hero')}
@@ -59,6 +69,12 @@ export default function LayersPanel({ doc, workspace, selectedId, onSelect }) {
                   <LayerItem key={i} name={item.title} type="component" />
                 ))}
               </LayerItem>
+              {doc.content.chart && (
+                <LayerItem
+                  name={doc.content.chart.title} type="group"
+                  selected={selectedId === 'chart'} onClick={() => onSelect('chart')}
+                />
+              )}
               {custom.map((el, i) => (
                 <LayerItem
                   key={el.id}

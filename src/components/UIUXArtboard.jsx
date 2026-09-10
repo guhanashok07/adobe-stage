@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import CanvasElement from './CanvasElement';
 import { Editable } from './primitives';
+import { ELEMENTS, ARTBOARDS } from '../state/document';
 
 // Nav labels are generated per domain, so the icon has to follow the word
 // rather than sit in a fixed slot. Falls back to the slot's default.
@@ -41,10 +42,23 @@ function navIcon(label, slot) {
 // so one prompt re-skins the whole screen and every string stays hand-editable.
 export default function UIUXArtboard({
   doc, selectedId, draggingId, wireframe,
-  onSelect, onDragStart, onResizeStart, onContent, onItem,
+  onSelect, onDragStart, onResizeStart, onContent, onItem, onStat, onChartTitle,
 }) {
   const dark = doc.theme === 'dark';
   const { content: c } = doc;
+  const stats = Array.isArray(c.stats) ? c.stats : [];
+  const chart = c.chart && Array.isArray(c.chart.series) ? c.chart : null;
+
+  const board = ARTBOARDS['UI/UX Design'];
+  // Absolute children are positioned from the content div's padding edge, so
+  // only the sidebar and header offsets are subtracted. Subtracting the
+  // padding as well shifted every block up and left by 32px.
+  const place = (id) => ({
+    left: ELEMENTS[id].x - board.sidebar,
+    top: ELEMENTS[id].y - board.header,
+    transform: `translate(${doc.positions[id]?.x || 0}px, ${doc.positions[id]?.y || 0}px)`,
+    zIndex: selectedId === id ? 10 : 1,
+  });
 
   const sizeOf = (id, w, h) => ({
     width: doc.sizes[id]?.w ? `${doc.sizes[id].w}px` : `${w}px`,
@@ -68,7 +82,7 @@ export default function UIUXArtboard({
 
   return (
     <div
-      className={`w-[800px] h-[500px] rounded-[6px] relative overflow-hidden flex transition-colors duration-500 ${
+      className={`w-[800px] h-[560px] rounded-[6px] relative overflow-hidden flex transition-colors duration-500 ${
         dark ? 'bg-[#0F172A]' : 'bg-[#F8FAFC]'
       }`}
       style={{
@@ -119,6 +133,46 @@ export default function UIUXArtboard({
             className={`text-[22px] font-bold tracking-[-0.01em] ${dark ? 'text-white' : 'text-slate-900'}`}
           />
 
+          {/* Generated KPI row. Present only when the concept has stats,
+              which is one of the things that makes layouts differ. */}
+          {stats.length > 0 && (
+            <CanvasElement
+              id="stats"
+              label="Metric Row"
+              selected={selectedId === 'stats'}
+              dragging={draggingId === 'stats'}
+              inset="-m-1.5"
+              radius="rounded-[10px]"
+              onSelect={onSelect}
+              onDragStart={onDragStart}
+              onResizeStart={onResizeStart}
+              style={{ ...place('stats'), width: doc.sizes.stats?.w ?? 552 }}
+            >
+              <div className="flex gap-3">
+                {stats.map((stat, i) => (
+                  <div
+                    key={i}
+                    className={`flex-1 rounded-[10px] border px-3.5 py-2.5 transition-colors duration-500 ${
+                      dark ? 'bg-slate-800/70 border-slate-700' : 'bg-white border-slate-200'
+                    }`}
+                    style={{ backgroundColor: doc.fills.stats ? `#${doc.fills.stats}` : undefined }}
+                  >
+                    <Editable
+                      value={stat.label}
+                      onCommit={(v) => onStat(i, 'label', v)}
+                      className={`text-[10px] font-medium truncate ${dark ? 'text-slate-400' : 'text-slate-500'}`}
+                    />
+                    <Editable
+                      value={stat.value}
+                      onCommit={(v) => onStat(i, 'value', v)}
+                      className={`text-[15px] font-bold tracking-[-0.01em] truncate ${dark ? 'text-white' : 'text-slate-900'}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </CanvasElement>
+          )}
+
           {/* Balance widget */}
           <CanvasElement
             id="hero"
@@ -129,11 +183,7 @@ export default function UIUXArtboard({
             onSelect={onSelect}
             onDragStart={onDragStart}
             onResizeStart={onResizeStart}
-            style={{
-              left: 32, top: 112,
-              transform: `translate(${doc.positions.hero?.x || 0}px, ${doc.positions.hero?.y || 0}px)`,
-              zIndex: selectedId === 'hero' ? 10 : 1,
-            }}
+            style={place('hero')}
           >
             <div
               className={`p-6 rounded-2xl text-white overflow-hidden relative transition-colors duration-500 ${
@@ -183,11 +233,7 @@ export default function UIUXArtboard({
             onSelect={onSelect}
             onDragStart={onDragStart}
             onResizeStart={onResizeStart}
-            style={{
-              left: 344, top: 112,
-              transform: `translate(${doc.positions.card?.x || 0}px, ${doc.positions.card?.y || 0}px)`,
-              zIndex: selectedId === 'card' ? 10 : 1,
-            }}
+            style={place('card')}
           >
             <div
               className={`p-5 rounded-xl border transition-colors duration-500 overflow-hidden ${
@@ -240,6 +286,52 @@ export default function UIUXArtboard({
               </div>
             </div>
           </CanvasElement>
+
+          {/* Generated trend chart. Null when the concept does not warrant one. */}
+          {chart && (
+            <CanvasElement
+              id="chart"
+              label={chart.title}
+              selected={selectedId === 'chart'}
+              dragging={draggingId === 'chart'}
+              radius="rounded-xl"
+              onSelect={onSelect}
+              onDragStart={onDragStart}
+              onResizeStart={onResizeStart}
+              style={{ ...place('chart'), width: doc.sizes.chart?.w ?? 552 }}
+            >
+              <div
+                className={`rounded-xl border px-4 py-3 transition-colors duration-500 ${
+                  dark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
+                }`}
+                style={{
+                  height: doc.sizes.chart?.h ?? 106,
+                  backgroundColor: doc.fills.chart ? `#${doc.fills.chart}` : undefined,
+                  boxShadow: dark ? 'none' : '0 1px 3px rgba(15,23,42,0.08)',
+                }}
+              >
+                <Editable
+                  value={chart.title}
+                  onCommit={(v) => onChartTitle(v)}
+                  className={`text-[11px] font-semibold mb-2 ${dark ? 'text-slate-200' : 'text-slate-700'}`}
+                />
+                <div className="flex items-end gap-1.5 h-[50px]">
+                  {chart.series.map((value, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 rounded-[3px] transition-all duration-500 ${
+                        wireframe ? 'bg-slate-400'
+                          : i === chart.series.length - 1
+                            ? 'bg-accent'
+                            : dark ? 'bg-accent/45' : 'bg-accent/25'
+                      }`}
+                      style={{ height: `${Math.max(6, value)}%` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </CanvasElement>
+          )}
 
           {/* User-added elements */}
           {doc.custom.filter((el) => el.ws === 'UI/UX Design').map((el) => (

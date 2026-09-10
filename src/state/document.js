@@ -3,23 +3,37 @@
 // object is what makes Cmd+Z a three-line reducer case instead of a rewrite.
 
 export const ARTBOARDS = {
-  'UI/UX Design': { w: 800, h: 500, sidebar: 200 },
-  'Graphic Design': { w: 400, h: 500, sidebar: 0 },
+  // The UI board is taller than the campaign board so a generated dashboard
+  // has room for a stat row and a chart rather than ending halfway down.
+  'UI/UX Design': { w: 800, h: 560, sidebar: 200, header: 64, pad: 32 },
+  'Graphic Design': { w: 400, h: 500, sidebar: 0, header: 0, pad: 0 },
 };
 
 export const CANVAS_SCALE = 0.85;
 
-// Static metadata for the four primary elements. `x`/`y`/`w`/`h` are the
-// artboard-space coordinates the properties panel reports before any user
-// transform is applied.
+// Static metadata for the primary elements. x/y/w/h are true artboard-space
+// coordinates: the content area begins at (sidebar + pad, header + pad), so
+// the properties panel now reports where things actually are. Previously it
+// reported hero at y=112 for an element sitting at y=176.
 export const ELEMENTS = {
+  // Vertical rhythm leaves ~24px between blocks so a selected element's
+  // label chip, which floats 30px above its own top edge, does not land on
+  // the block above it.
+  stats: {
+    label: 'Metric Row', ws: 'UI/UX Design',
+    x: 232, y: 140, w: 552, h: 52,
+  },
   hero: {
     label: 'Balance Widget', ws: 'UI/UX Design',
-    x: 232, y: 112, w: 280, h: 190,
+    x: 232, y: 224, w: 280, h: 186,
   },
   card: {
     label: 'Transactions List', ws: 'UI/UX Design',
-    x: 544, y: 112, w: 240, h: 320,
+    x: 544, y: 224, w: 240, h: 186,
+  },
+  chart: {
+    label: 'Trend Chart', ws: 'UI/UX Design',
+    x: 232, y: 442, w: 552, h: 106,
   },
   gdHeadline: {
     label: 'Main Headline', ws: 'Graphic Design',
@@ -48,10 +62,19 @@ export const INITIAL_DOC = {
       { title: 'Apple Store', sub: 'Today, 2:45 PM', amount: '-$999' },
       { title: 'Upwork Inc.', sub: 'Yesterday', amount: '+$2,400' },
     ],
+    stats: [
+      { label: 'Income', value: '$8,240' },
+      { label: 'Spending', value: '$3,110' },
+      { label: 'Saved', value: '38%' },
+    ],
+    chart: { title: 'Cash Flow, Last 7 Days', series: [42, 58, 35, 71, 64, 88, 52] },
     gdBrand: 'ACME',
     gdHeadline: 'THE FUTURE OF DIGITAL BANKING.',
   },
-  positions: { hero: { x: 0, y: 0 }, card: { x: 0, y: 0 }, gdHeadline: { x: 0, y: 0 }, gdShape: { x: 0, y: 0 } },
+  positions: {
+    stats: { x: 0, y: 0 }, hero: { x: 0, y: 0 }, card: { x: 0, y: 0 }, chart: { x: 0, y: 0 },
+    gdHeadline: { x: 0, y: 0 }, gdShape: { x: 0, y: 0 },
+  },
   sizes: {},
   fills: {},
   custom: [],
@@ -132,6 +155,8 @@ export function labelOf(id, doc) {
   // card on a shopping app reads "Cart Value", not "Balance Widget".
   if (id === 'hero') return doc?.content?.statLabel || ELEMENTS.hero.label;
   if (id === 'card') return doc?.content?.activityTitle || ELEMENTS.card.label;
+  if (id === 'chart') return doc?.content?.chart?.title || ELEMENTS.chart.label;
+  if (id === 'stats') return ELEMENTS.stats.label;
   if (ELEMENTS[id]) return ELEMENTS[id].label;
   const el = doc.custom.find((e) => e.id === id);
   if (!el) return 'No selection';
