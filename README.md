@@ -90,11 +90,8 @@ Every generated element on the Stage canvas is instantiated as an **interactive 
 
 ---
 
-## 👥 Project Team & CMU Course Credit
+---
 
-Developed as part of the **Product Marketing Course** at **Carnegie Mellon University**:
+## 👥 Course & Project Credit
 
-* **Guhan Ashok** — *Product Strategy & Prototype Engineering*
-* **Archana Kamath**
-* **Nags Hanumanthappa**
-* **Urmi Dutta**
+Developed as a collaborative team project for the **Product Marketing Course** at **Carnegie Mellon University**.
