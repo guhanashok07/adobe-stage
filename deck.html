@@ -40,13 +40,10 @@
       user-select: none;
     }
     .slide {
-      display: none;
-      opacity: 0;
-      transition: opacity 0.2s ease-in-out;
+      display: none !important;
     }
     .slide.active {
-      display: flex;
-      opacity: 1;
+      display: flex !important;
     }
     .card-base {
       background: #18181B;
@@ -55,6 +52,9 @@
     .card-highlight {
       background: #18181B;
       border: 1px solid rgba(235, 16, 0, 0.4);
+    }
+    button, a {
+      cursor: pointer !important;
     }
   </style>
 </head>
@@ -781,86 +781,122 @@
   </footer>
 
   <script>
-    const slides = document.querySelectorAll('.slide');
-    const totalSlides = slides.length;
     let currentSlide = 0;
-
-    const currentNumEl = document.getElementById('current-slide-num');
-    const totalNumEl = document.getElementById('total-slides-num');
-    const dotContainer = document.getElementById('dot-indicators');
-
-    totalNumEl.innerText = totalSlides;
-
-    // Create dot buttons
-    slides.forEach((slide, idx) => {
-      const dot = document.createElement('button');
-      dot.className = (idx === 0) ? 'w-5 h-1.5 rounded-full bg-adobe-red transition-all' : 'w-1.5 h-1.5 rounded-full bg-zinc-700 hover:bg-zinc-500 transition-all';
-      dot.title = slide.getAttribute('data-title') || ('Slide ' + (idx + 1));
-      dot.onclick = () => goToSlide(idx);
-      dotContainer.appendChild(dot);
-    });
+    let slides = [];
+    let totalSlides = 0;
 
     function updateSlide() {
       slides.forEach((slide, index) => {
         if (index === currentSlide) {
           slide.classList.add('active');
+          slide.style.setProperty('display', 'flex', 'important');
         } else {
           slide.classList.remove('active');
+          slide.style.setProperty('display', 'none', 'important');
         }
       });
-      currentNumEl.innerText = currentSlide + 1;
 
-      // Update dot states
-      const dots = dotContainer.querySelectorAll('button');
-      dots.forEach((dot, idx) => {
-        if (idx === currentSlide) {
-          dot.className = 'w-5 h-1.5 rounded-full bg-adobe-red transition-all';
-        } else {
-          dot.className = 'w-1.5 h-1.5 rounded-full bg-zinc-700 hover:bg-zinc-500 transition-all';
-        }
-      });
+      const currentNumEl = document.getElementById('current-slide-num');
+      if (currentNumEl) currentNumEl.textContent = currentSlide + 1;
+
+      const dotContainer = document.getElementById('dot-indicators');
+      if (dotContainer) {
+        const dots = dotContainer.querySelectorAll('button');
+        dots.forEach((dot, idx) => {
+          if (idx === currentSlide) {
+            dot.className = 'w-6 h-2 rounded-full bg-red-600 transition-all cursor-pointer p-0 m-0';
+          } else {
+            dot.className = 'w-2 h-2 rounded-full bg-zinc-700 hover:bg-zinc-500 transition-all cursor-pointer p-0 m-0';
+          }
+        });
+      }
     }
 
-    function nextSlide() {
+    window.nextSlide = function() {
       if (currentSlide < totalSlides - 1) {
         currentSlide++;
         updateSlide();
       }
-    }
+    };
 
-    function prevSlide() {
+    window.prevSlide = function() {
       if (currentSlide > 0) {
         currentSlide--;
         updateSlide();
       }
-    }
+    };
 
-    function goToSlide(index) {
+    window.goToSlide = function(index) {
       if (index >= 0 && index < totalSlides) {
         currentSlide = index;
         updateSlide();
       }
+    };
+
+    function initDeck() {
+      slides = Array.from(document.querySelectorAll('.slide'));
+      totalSlides = slides.length;
+
+      const totalNumEl = document.getElementById('total-slides-num');
+      if (totalNumEl) totalNumEl.textContent = totalSlides;
+
+      const dotContainer = document.getElementById('dot-indicators');
+      if (dotContainer) {
+        dotContainer.innerHTML = '';
+        slides.forEach((slide, idx) => {
+          const dot = document.createElement('button');
+          dot.setAttribute('type', 'button');
+          dot.className = (idx === 0) ? 'w-6 h-2 rounded-full bg-red-600 transition-all cursor-pointer p-0 m-0' : 'w-2 h-2 rounded-full bg-zinc-700 hover:bg-zinc-500 transition-all cursor-pointer p-0 m-0';
+          dot.title = slide.getAttribute('data-title') || ('Slide ' + (idx + 1));
+          dot.onclick = function(e) {
+            e.stopPropagation();
+            window.goToSlide(idx);
+          };
+          dotContainer.appendChild(dot);
+        });
+      }
+
+      const prevBtn = document.getElementById('prev-btn');
+      const nextBtn = document.getElementById('next-btn');
+
+      if (prevBtn) {
+        prevBtn.onclick = function(e) {
+          e.stopPropagation();
+          window.prevSlide();
+        };
+      }
+
+      if (nextBtn) {
+        nextBtn.onclick = function(e) {
+          e.stopPropagation();
+          window.nextSlide();
+        };
+      }
+
+      updateSlide();
     }
 
-    // Keyboard handlers
     window.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
         e.preventDefault();
-        nextSlide();
+        window.nextSlide();
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         e.preventDefault();
-        prevSlide();
+        window.prevSlide();
       } else if (e.key === 'Home') {
         e.preventDefault();
-        goToSlide(0);
+        window.goToSlide(0);
       } else if (e.key === 'End') {
         e.preventDefault();
-        goToSlide(totalSlides - 1);
+        window.goToSlide(totalSlides - 1);
       }
     });
 
-    // Initialize
-    updateSlide();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initDeck);
+    } else {
+      initDeck();
+    }
   </script>
 </body>
 </html>
