@@ -1,248 +1,254 @@
 import React, { useState } from 'react';
-import { Sparkles, Key, Eye, EyeOff, ArrowRight, Check, Lock, Zap, MousePointer2, Type, Square, Palette } from 'lucide-react';
+import {
+  Sparkles, Eye, EyeOff, ArrowRight, ArrowLeft, Lock,
+  MousePointer2, Type, SlidersHorizontal, Undo2, Layers, Palette,
+} from 'lucide-react';
 
-const STORAGE_KEY = 'adobe-stage-onboarding-done';
-const API_KEY_STORAGE = 'adobe-stage-api-key';
-const API_PROVIDER_STORAGE = 'adobe-stage-api-provider';
+export const STORAGE_KEY = 'adobe-stage-onboarding-done';
+export const API_KEY_STORAGE = 'adobe-stage-api-key';
+export const API_PROVIDER_STORAGE = 'adobe-stage-api-provider';
 
-const Onboarding = ({ onComplete }) => {
+// The guided demo. This is the product argument in four moves: prompt once,
+// get both surfaces, then finish the last 10% by hand without re-prompting.
+const WALKTHROUGH = [
+  {
+    n: 1,
+    title: 'Prompt a concept',
+    body: 'Type "a crypto wallet dashboard" into Stage AI and press Enter. The dashboard re-skins end to end: name, balance, transactions, call to action.',
+    icon: <Sparkles size={14} />,
+  },
+  {
+    n: 2,
+    title: 'Check the second surface',
+    body: 'The footer says Graphic Design updated. Click it. The same concept is already laid out as a social ad. One prompt, two surfaces, one brand.',
+    icon: <Layers size={14} />,
+  },
+  {
+    n: 3,
+    title: 'Finish it by hand',
+    body: 'Select the headline. Drag it, nudge with arrow keys, resize from a corner, retype it inline, or set an exact X/W and a fill colour in the properties panel. No re-prompting.',
+    icon: <MousePointer2 size={14} />,
+  },
+  {
+    n: 4,
+    title: 'Change your mind freely',
+    body: 'Cmd+Z steps back through every edit. Drop the fidelity slider under 35% to see the same layout as a wireframe.',
+    icon: <Undo2 size={14} />,
+  },
+];
+
+const CAPABILITIES = {
+  live: [
+    'Prompt-to-design across both workspaces',
+    'Drag, corner-resize, and arrow-key nudge',
+    'Inline text editing on the artboard',
+    'X / Y / W / H, alignment, and fill controls',
+    'Undo & redo across every edit',
+    'Fidelity and creativity parameters',
+    'Add and delete shapes and text',
+    'Light / dark theme tokens',
+  ],
+  roadmap: [
+    'Brand DNA library integration',
+    'Multi-user collaboration',
+    'Export to code and assets',
+    'Creative Cloud Libraries',
+    'Auto layout and prototyping',
+  ],
+};
+
+export default function Onboarding({ onComplete, hasKey }) {
   const [step, setStep] = useState(0);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) || '');
   const [provider, setProvider] = useState(() => localStorage.getItem(API_PROVIDER_STORAGE) || 'gemini');
   const [showKey, setShowKey] = useState(false);
 
-  const handleFinish = () => {
-    if (apiKey.trim()) {
-      localStorage.setItem(API_KEY_STORAGE, apiKey.trim());
+  const finish = (key) => {
+    const trimmed = (key ?? apiKey).trim();
+    if (trimmed) {
+      localStorage.setItem(API_KEY_STORAGE, trimmed);
       localStorage.setItem(API_PROVIDER_STORAGE, provider);
+    } else {
+      localStorage.removeItem(API_KEY_STORAGE);
     }
     localStorage.setItem(STORAGE_KEY, 'true');
-    onComplete({ apiKey: apiKey.trim(), provider });
+    onComplete({ apiKey: trimmed, provider });
   };
 
-  const handleSkip = () => {
-    localStorage.setItem(STORAGE_KEY, 'true');
-    onComplete({ apiKey: '', provider });
-  };
-
-  // Step content
   const steps = [
-    // Step 0: Welcome
     {
-      title: 'Welcome to Adobe Stage',
-      content: (
-        <div className="space-y-5">
-          <p className="text-gray-300 text-sm leading-relaxed">
-            A browser-native, AI-first design tool prototype. Stage lets you generate UI and graphic design layouts from text prompts, then refine them with direct manipulation — drag, resize, edit text, adjust properties.
-          </p>
-          <p className="text-gray-400 text-sm leading-relaxed">
-            This is a proof-of-concept built for a Product Marketing course at Carnegie Mellon. Some features are fully functional, others are shown as roadmap items.
-          </p>
-          <div className="bg-[#1a1a1a] border border-[#333] rounded-lg p-4">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">What you can do right now</div>
-            <div className="space-y-2.5">
-              <FeatureRow icon={<Sparkles size={14} />} text="Type a prompt to generate or modify designs" status="live" />
-              <FeatureRow icon={<MousePointer2 size={14} />} text="Drag and resize elements on the canvas" status="live" />
-              <FeatureRow icon={<Type size={14} />} text="Double-click any text to edit it inline" status="live" />
-              <FeatureRow icon={<Square size={14} />} text="Add shapes and text blocks from the toolbar" status="live" />
-              <FeatureRow icon={<Palette size={14} />} text="Switch between UI/UX and Graphic Design workspaces" status="live" />
-            </div>
-          </div>
-        </div>
-      )
-    },
-    // Step 1: Feature map
-    {
-      title: 'Feature Overview',
-      content: (
+      title: 'Adobe Stage',
+      body: (
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">
-            Features marked as roadmap are visible in the UI but not yet wired up. They show where the product is headed.
+          <p className="text-[13px] leading-relaxed text-spectrum-100">
+            Generative design tools hit a <span className="text-spectrum-50 font-semibold">prompt wall</span>: you get
+            90% of a layout in seconds, then spend an hour re-prompting to move one button 12 pixels.
           </p>
-          <div className="bg-[#1a1a1a] border border-[#333] rounded-lg p-4 space-y-4">
-            <div>
-              <div className="text-xs font-semibold text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                Functional
+          <p className="text-[13px] leading-relaxed text-spectrum-100">
+            Stage splits the job. <span className="text-spectrum-50 font-semibold">Prompt the first 90%</span> in plain
+            English, then <span className="text-spectrum-50 font-semibold">finish the last 10% by hand</span>: drag,
+            resize, retype, recolour, on a browser-native canvas.
+          </p>
+
+          <div className="grid grid-cols-2 gap-2.5 pt-1">
+            <div className="rounded-[4px] border border-spectrum-400 bg-spectrum-800 p-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-400 mb-2">
+                Functional now
               </div>
-              <div className="space-y-1.5 text-sm text-gray-300">
-                <div>• AI prompt generation (with API key)</div>
-                <div>• Dark / Light mode switching</div>
-                <div>• Element drag, resize, and selection</div>
-                <div>• Inline text editing on canvas</div>
-                <div>• Workspace switching (UI/UX ↔ Graphic Design)</div>
-                <div>• Fidelity & Creativity parameter sliders</div>
-                <div>• Layer panel with element selection</div>
-              </div>
+              <ul className="space-y-1.5">
+                {CAPABILITIES.live.map((c) => (
+                  <li key={c} className="text-[11px] text-spectrum-100 leading-snug">· {c}</li>
+                ))}
+              </ul>
             </div>
-            <div className="h-px bg-[#333]"></div>
-            <div>
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-gray-500"></div>
-                Roadmap (shown but greyed out)
+            <div className="rounded-[4px] border border-spectrum-400 bg-spectrum-800 p-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-spectrum-200 mb-2">
+                Shown as roadmap
               </div>
-              <div className="space-y-1.5 text-sm text-gray-500">
-                <div>• Brand DNA library integration</div>
-                <div>• Multi-user collaboration (avatar indicators)</div>
-                <div>• Export to code / assets</div>
-                <div>• Creative Cloud Libraries</div>
-                <div>• Advanced property inspector (stroke, effects)</div>
-                <div>• Present / Share functionality</div>
-              </div>
+              <ul className="space-y-1.5">
+                {CAPABILITIES.roadmap.map((c) => (
+                  <li key={c} className="text-[11px] text-spectrum-200/80 leading-snug">· {c}</li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-spectrum-200/70 mt-3 leading-snug">
+                Greyed-out controls in the UI are deliberate. They mark where the product goes next.
+              </p>
             </div>
           </div>
         </div>
-      )
+      ),
     },
-    // Step 2: API Key
     {
-      title: 'Connect an AI Model (Optional)',
-      content: (
-        <div className="space-y-5">
-          <p className="text-gray-300 text-sm leading-relaxed">
-            To get real AI-generated design responses, paste your own API key below. Without a key, the tool falls back to built-in demo responses.
-          </p>
-          <p className="text-gray-500 text-xs leading-relaxed">
-            Your key is stored only in this browser's local storage. It is never sent to any server other than the AI provider's API endpoint.
+      title: 'Try this in about 60 seconds',
+      body: (
+        <div className="space-y-2.5">
+          {WALKTHROUGH.map((s) => (
+            <div key={s.n} className="flex gap-3 rounded-[4px] border border-spectrum-400 bg-spectrum-800 p-3">
+              <div className="w-6 h-6 shrink-0 rounded-full bg-accent grid place-items-center text-[11px] font-bold text-white">
+                {s.n}
+              </div>
+              <div className="min-w-0">
+                <div className="text-[12px] font-semibold text-spectrum-50 flex items-center gap-1.5 mb-0.5">
+                  <span className="text-accent-subtle">{s.icon}</span>
+                  {s.title}
+                </div>
+                <p className="text-[12px] text-spectrum-100 leading-relaxed">{s.body}</p>
+              </div>
+            </div>
+          ))}
+
+          <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-spectrum-200">
+            <span className="flex items-center gap-1.5"><Type size={11} /> Click text to edit</span>
+            <span className="flex items-center gap-1.5"><MousePointer2 size={11} /> Arrows nudge · ⇧ for 10px</span>
+            <span className="flex items-center gap-1.5"><Undo2 size={11} /> ⌘Z undo · ⇧⌘Z redo</span>
+            <span className="flex items-center gap-1.5"><SlidersHorizontal size={11} /> Esc deselects</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Connect an AI model (optional)',
+      body: (
+        <div className="space-y-4">
+          <p className="text-[13px] leading-relaxed text-spectrum-100">
+            Paste your own key for real generated responses to any prompt. Without one, Stage runs in demo
+            mode and answers a fixed set of prompts from built-in archetypes, which is enough to walk the whole demo above.
           </p>
 
-          {/* Provider selector */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setProvider('gemini')}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all border ${
-                provider === 'gemini'
-                  ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                  : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:border-[#555]'
-              }`}
-            >
-              Google Gemini
-            </button>
-            <button
-              onClick={() => setProvider('openai')}
-              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all border ${
-                provider === 'openai'
-                  ? 'bg-green-600/20 border-green-500 text-green-400'
-                  : 'bg-[#1a1a1a] border-[#333] text-gray-400 hover:border-[#555]'
-              }`}
-            >
-              OpenAI
-            </button>
+          <div className="grid grid-cols-2 gap-2">
+            {[['gemini', 'Google Gemini'], ['openai', 'OpenAI']].map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setProvider(id)}
+                className={`h-9 rounded-[4px] text-[13px] font-medium border transition-colors ${
+                  provider === id
+                    ? 'bg-accent/15 border-accent text-accent-subtle'
+                    : 'bg-spectrum-800 border-spectrum-400 text-spectrum-100 hover:border-spectrum-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          {/* Key input */}
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-              <Key size={16} />
-            </div>
+          <div className="flex items-center gap-2 bg-spectrum-800 border border-spectrum-400 rounded-[4px] px-3 h-10 focus-within:border-accent transition-colors">
+            <Lock size={13} className="text-spectrum-200 shrink-0" />
             <input
               type={showKey ? 'text' : 'password'}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={provider === 'gemini' ? 'AIza...' : 'sk-...'}
-              className="w-full bg-[#111] border border-[#444] rounded-lg pl-10 pr-12 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 font-mono transition-colors"
-              spellCheck={false}
-              autoComplete="off"
+              onKeyDown={(e) => { if (e.key === 'Enter') finish(); }}
+              placeholder={provider === 'gemini' ? 'AIza…' : 'sk-…'}
+              className="flex-1 bg-transparent text-[13px] text-spectrum-50 placeholder-spectrum-200/60 outline-none font-mono"
             />
             <button
-              onClick={() => setShowKey(!showKey)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+              onClick={() => setShowKey((v) => !v)}
+              className="text-spectrum-200 hover:text-spectrum-50 transition-colors"
+              title={showKey ? 'Hide key' : 'Show key'}
             >
-              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           </div>
 
-          <div className="bg-[#1a1a1a] border border-[#333] rounded-lg p-3 flex items-start gap-2.5">
-            <Lock size={14} className="text-gray-500 mt-0.5 shrink-0" />
-            <div className="text-xs text-gray-500 leading-relaxed">
-              No key? No problem. You can still explore the full UI. The AI prompt bar will use deterministic demo responses (dark mode, cyberpunk style, button color changes).
-            </div>
-          </div>
+          <p className="text-[11px] text-spectrum-200 leading-relaxed">
+            The key is kept in this browser's local storage and sent only to the provider's own API endpoint.
+            It never reaches a Stage server, because there isn't one. Clear the field and continue to remove it.
+          </p>
         </div>
-      )
-    }
+      ),
+    },
   ];
 
-  const currentStep = steps[step];
-  const isLast = step === steps.length - 1;
+  const last = step === steps.length - 1;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-[#222] border border-[#444] rounded-2xl w-[520px] max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-[#333]">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
-              <Sparkles size={16} className="text-white" />
-            </div>
-            <h2 className="text-lg font-bold text-white">{currentStep.title}</h2>
+    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm grid place-items-center p-6">
+      <div className="w-full max-w-[620px] bg-spectrum-700 border border-spectrum-300 rounded-[8px] shadow-modal overflow-hidden">
+        <div className="px-6 pt-5 pb-4 border-b border-spectrum-400">
+          <div className="flex items-center gap-2.5 mb-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+              <path fill="#EB1000" d="M15.1 2H22V22L15.1 2ZM8.9 2H2V22L8.9 2ZM12 9.4L17.6 22H13.8L12 17.5L8.5 22H5.4L12 9.4Z" />
+            </svg>
+            <h2 className="text-[17px] font-semibold text-spectrum-50 tracking-[-0.01em]">{steps[step].title}</h2>
           </div>
-          {/* Step dots */}
-          <div className="flex gap-1.5 mt-3">
+          <div className="flex gap-1.5">
             {steps.map((_, i) => (
               <div
                 key={i}
-                className={`h-1 rounded-full transition-all ${
-                  i === step ? 'w-8 bg-purple-500' : i < step ? 'w-4 bg-purple-500/50' : 'w-4 bg-[#444]'
-                }`}
+                className={`h-0.5 flex-1 rounded-full transition-colors ${i <= step ? 'bg-accent' : 'bg-spectrum-400'}`}
               />
             ))}
           </div>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 overflow-y-auto flex-1">
-          {currentStep.content}
-        </div>
+        <div className="px-6 py-5 max-h-[62vh] overflow-y-auto">{steps[step].body}</div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-[#333] flex justify-between items-center">
+        <div className="px-6 py-3.5 border-t border-spectrum-400 bg-spectrum-800 flex items-center justify-between">
           <button
-            onClick={handleSkip}
-            className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+            onClick={() => finish(hasKey ? undefined : '')}
+            className="text-[12px] text-spectrum-200 hover:text-spectrum-50 transition-colors"
           >
-            Skip intro
+            Skip
           </button>
-          <div className="flex gap-2">
+
+          <div className="flex items-center gap-2">
             {step > 0 && (
               <button
-                onClick={() => setStep(step - 1)}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:bg-[#333] transition-colors"
+                onClick={() => setStep((s) => s - 1)}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-[4px] text-[13px] font-medium text-spectrum-100 hover:bg-spectrum-500 hover:text-spectrum-50 transition-colors"
               >
-                Back
+                <ArrowLeft size={13} /> Back
               </button>
             )}
-            {isLast ? (
-              <button
-                onClick={handleFinish}
-                className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium bg-purple-600 hover:bg-purple-500 text-white transition-colors shadow-md"
-              >
-                <Zap size={14} /> Get Started
-              </button>
-            ) : (
-              <button
-                onClick={() => setStep(step + 1)}
-                className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium bg-[#333] hover:bg-[#444] text-white transition-colors"
-              >
-                Next <ArrowRight size={14} />
-              </button>
-            )}
+            <button
+              onClick={() => (last ? finish() : setStep((s) => s + 1))}
+              className="flex items-center gap-1.5 h-8 px-4 rounded-[4px] bg-accent hover:bg-accent-hover text-white text-[13px] font-semibold transition-colors"
+            >
+              {last ? (<><Palette size={13} /> Start designing</>) : (<>Next <ArrowRight size={13} /></>)}
+            </button>
           </div>
         </div>
       </div>
     </div>
   );
-};
-
-const FeatureRow = ({ icon, text, status }) => (
-  <div className="flex items-center gap-2.5">
-    <div className={`w-5 h-5 rounded flex items-center justify-center ${status === 'live' ? 'text-green-400' : 'text-gray-600'}`}>
-      {icon}
-    </div>
-    <span className={`text-sm ${status === 'live' ? 'text-gray-300' : 'text-gray-600'}`}>{text}</span>
-    {status === 'live' && <Check size={12} className="text-green-400 ml-auto" />}
-  </div>
-);
-
-export default Onboarding;
-export { API_KEY_STORAGE, API_PROVIDER_STORAGE, STORAGE_KEY };
+}

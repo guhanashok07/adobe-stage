@@ -34,27 +34,39 @@ Rules:
 - Set "gdStyle" to "cyberpunk" for tech/cyber/futuristic prompts, or "modern" otherwise.
 - Keep text concise and realistic.`;
 
-export async function generateWithAI(prompt, { apiKey, provider, workspace, selectedElement }) {
+export async function generateWithAI(prompt, options = {}) {
+  const { apiKey, provider } = options;
+
   if (!apiKey) {
-    return fallbackGenerate(prompt, workspace);
+    return fallbackGenerate(prompt);
   }
 
   try {
-    if (provider === 'gemini') {
-      return await callGemini(prompt, apiKey, workspace, selectedElement);
-    } else {
-      return await callOpenAI(prompt, apiKey, workspace, selectedElement);
-    }
+    return provider === 'gemini'
+      ? await callGemini(prompt, apiKey, options)
+      : await callOpenAI(prompt, apiKey, options);
   } catch (err) {
     console.error('AI API error, falling back to demo mode:', err);
     return {
-      ...fallbackGenerate(prompt, workspace),
-      message: `API error: ${err.message}. Used demo fallback instead.`
+      ...fallbackGenerate(prompt),
+      message: `${err.message}. Showed a demo result instead.`
     };
   }
 }
 
-async function callGemini(prompt, apiKey, workspace, selectedElement) {
+// The context block is identical for both providers.
+function buildContext(prompt, { workspace, selectedElement, fidelity = 80, creativity = 30 }) {
+  return [
+    `Current workspace: ${workspace}`,
+    `Selected element: ${selectedElement}`,
+    `Fidelity: ${fidelity}/100 (low = wireframe, plain language, muted; high = polished, specific, production-ready copy)`,
+    `Creativity: ${creativity}/100 (low = stay literal and on-brand; high = take an unexpected angle)`,
+    '',
+    `User prompt: "${prompt}"`
+  ].join('\n');
+}
+
+async function callGemini(prompt, apiKey, options) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
   const res = await fetch(url, {
@@ -63,12 +75,12 @@ async function callGemini(prompt, apiKey, workspace, selectedElement) {
     body: JSON.stringify({
       contents: [{
         parts: [{
-          text: `${SYSTEM_PROMPT}\n\nCurrent workspace: ${workspace}\nSelected element: ${selectedElement}\n\nUser prompt: "${prompt}"`
+          text: `${SYSTEM_PROMPT}\n\n${buildContext(prompt, options)}`
         }]
       }],
       generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 256,
+        temperature: Math.min(1, (options.creativity ?? 30) / 100 + 0.15),
+        maxOutputTokens: 400,
         responseMimeType: "application/json"
       }
     })
@@ -86,7 +98,7 @@ async function callGemini(prompt, apiKey, workspace, selectedElement) {
   return parseAIResponse(text);
 }
 
-async function callOpenAI(prompt, apiKey, workspace, selectedElement) {
+async function callOpenAI(prompt, apiKey, options) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -97,10 +109,10 @@ async function callOpenAI(prompt, apiKey, workspace, selectedElement) {
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Current workspace: ${workspace}\nSelected element: ${selectedElement}\n\nUser prompt: "${prompt}"` }
+        { role: 'user', content: buildContext(prompt, options) }
       ],
-      temperature: 0.3,
-      max_tokens: 256,
+      temperature: Math.min(1, (options.creativity ?? 30) / 100 + 0.15),
+      max_tokens: 400,
       response_format: { type: 'json_object' }
     })
   });
@@ -132,7 +144,7 @@ function parseAIResponse(text) {
   };
 }
 
-function fallbackGenerate(prompt, workspace) {
+function fallbackGenerate(prompt) {
   const lower = prompt.toLowerCase();
   const result = {
     theme: null,

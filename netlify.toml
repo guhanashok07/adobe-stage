@@ -1,0 +1,16 @@
+# Netlify build configuration for Adobe Stage.
+# Keeps deploy settings in the repo instead of only in the Netlify dashboard.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# deck.html is a standalone static page served from /deck.html.
+# Everything else is the React SPA and must fall through to index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
