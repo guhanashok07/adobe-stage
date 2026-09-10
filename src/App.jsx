@@ -1,986 +1,759 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  MousePointer2, Move, Type, Square, Layout, Sparkles, 
-  ChevronDown, Users, Play, Share, Layers, Palette, 
+  MousePointer2, Type, Square, Layout, Sparkles, 
+  ChevronDown, Play, Share, Layers, Palette, 
   Folder, Settings, Menu, AlignLeft, AlignCenter, AlignRight,
-  Maximize, X, SlidersHorizontal, Image as ImageIcon,
-  Wand2, CornerUpLeft, CornerUpRight, Check, PanelRight,
-  Minus, CreditCard, ArrowRightLeft, PieChart, Search, Bell
+  Maximize, SlidersHorizontal, Image as ImageIcon,
+  Wand2, CornerUpLeft, Check, PanelRight,
+  Minus, CreditCard, ArrowRightLeft, PieChart, Search, Bell,
+  Code2, Key, HelpCircle, Plus, Trash2
 } from 'lucide-react';
 
+import { BRAND_PRESETS, INITIAL_UI_BLOCKS, INITIAL_GRAPHIC_BLOCKS } from './data/templates';
+import { generateBlocksFromPrompt } from './services/aiService';
+import BlockRenderer from './components/BlockRenderer';
+import SettingsModal from './components/SettingsModal';
+import ExportModal from './components/ExportModal';
+
 const App = () => {
-  const [showAIPanel, setShowAIPanel] = useState(true);
+  // Navigation & Workspace
   const [activeWorkspace, setActiveWorkspace] = useState('UI/UX Design');
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
-  
-  // Sidebar Toggle States
+  const [showBrandMenu, setShowBrandMenu] = useState(false);
+  const [selectedBrandKey, setSelectedBrandKey] = useState('acme');
+  const brand = BRAND_PRESETS[selectedBrandKey] || BRAND_PRESETS.acme;
+
+  // Sidebar Panels
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  
-  const [fidelity, setFidelity] = useState(80);
-  const [creativity, setCreativity] = useState(30);
-  const [prompt, setPrompt] = useState("");
-  
-  // Interactive States
+  const [showAIPanel, setShowAIPanel] = useState(true);
+
+  // Modals
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+
+  // API Key & Provider (stored in localStorage for persistence)
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('stage_ai_api_key') || '');
+  const [apiProvider, setApiProvider] = useState(() => localStorage.getItem('stage_ai_provider') || 'gemini');
+
+  // Canvas State & Blocks
+  const [uiBlocks, setUiBlocks] = useState(INITIAL_UI_BLOCKS);
+  const [graphicBlocks, setGraphicBlocks] = useState(INITIAL_GRAPHIC_BLOCKS);
+  const activeBlocks = activeWorkspace === 'UI/UX Design' ? uiBlocks : graphicBlocks;
+  const setActiveBlocks = activeWorkspace === 'UI/UX Design' ? setUiBlocks : setGraphicBlocks;
+
+  const [selectedBlockId, setSelectedBlockId] = useState(activeBlocks[0]?.id || null);
+  const selectedBlock = activeBlocks.find(b => b.id === selectedBlockId) || activeBlocks[0];
+
+  // AI Prompt State
+  const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [canvasTheme, setCanvasTheme] = useState('light');
-  const [ctaStyle, setCtaStyle] = useState('blue'); // 'blue' or 'black'
-  const [gdStyle, setGdStyle] = useState('modern'); // 'modern' or 'cyberpunk'
-  
-  const [selectedElement, setSelectedElement] = useState('hero'); // 'hero', 'card', 'gdHeadline', 'gdShape', or dynamic ID
+  const [fidelity, setFidelity] = useState(85);
+  const [creativity, setCreativity] = useState(30);
 
-  // Dynamic Custom Elements State
-  const [customElements, setCustomElements] = useState([]);
+  // Canvas Theme
+  const [canvasTheme, setCanvasTheme] = useState('dark');
 
-  // Dragging & Resizing State
-  const [positions, setPositions] = useState({
-    hero: { x: 0, y: 0 },
-    card: { x: 0, y: 0 },
-    gdHeadline: { x: 0, y: 0 },
-    gdShape: { x: 0, y: 0 }
-  });
-  const [sizes, setSizes] = useState({}); // Stores w and h for custom shapes
-  const [draggingId, setDraggingId] = useState(null);
-  const [resizingId, setResizingId] = useState(null);
-
-  const handleMouseMove = (e) => {
-    const scale = 0.85; // Matches the canvas scale
-    
-    if (resizingId) {
-      setSizes(prev => ({
-        ...prev,
-        [resizingId]: {
-          w: Math.max(30, (prev[resizingId]?.w || 96) + (e.movementX / scale)),
-          h: Math.max(30, (prev[resizingId]?.h || 96) + (e.movementY / scale))
-        }
-      }));
-      return;
-    }
-
-    if (draggingId) {
-      setPositions(prev => ({
-        ...prev,
-        [draggingId]: {
-          x: (prev[draggingId]?.x || 0) + (e.movementX / scale),
-          y: (prev[draggingId]?.y || 0) + (e.movementY / scale)
-        }
-      }));
+  // Save API key changes
+  const handleSaveApiKey = (newKey) => {
+    setApiKey(newKey);
+    if (newKey) {
+      localStorage.setItem('stage_ai_api_key', newKey);
+    } else {
+      localStorage.removeItem('stage_ai_api_key');
     }
   };
 
-  const handleMouseUp = () => {
-    setDraggingId(null);
-    setResizingId(null);
+  const handleChangeProvider = (newProvider) => {
+    setApiProvider(newProvider);
+    localStorage.setItem('stage_ai_provider', newProvider);
   };
 
-  // Add Tools functionality
-  const addElement = (type) => {
-    const id = `custom-${Date.now()}`;
-    const newEl = { id, type, ws: activeWorkspace };
-    setCustomElements(prev => [...prev, newEl]);
-    setPositions(prev => ({ ...prev, [id]: { x: 0, y: 0 } }));
-    if (type === 'shape') {
-      setSizes(prev => ({ ...prev, [id]: { w: 96, h: 96 } }));
+  // Sync selected block when workspace switches
+  useEffect(() => {
+    const currentList = activeWorkspace === 'UI/UX Design' ? uiBlocks : graphicBlocks;
+    if (currentList.length > 0) {
+      setSelectedBlockId(currentList[0].id);
+    } else {
+      setSelectedBlockId(null);
     }
-    setSelectedElement(id);
+  }, [activeWorkspace]);
+
+  // Update a style property of the selected block directly
+  const updateSelectedStyle = (prop, value) => {
+    if (!selectedBlock) return;
+    setActiveBlocks(prev => prev.map(b => {
+      if (b.id === selectedBlock.id) {
+        return {
+          ...b,
+          styles: {
+            ...b.styles,
+            [prop]: value
+          }
+        };
+      }
+      return b;
+    }));
   };
 
-  // Simulated AI Generation
-  const handleGenerate = (customPrompt = prompt) => {
-    if (!customPrompt) return;
+  // Update content of a block directly
+  const updateBlockContent = (id, newContent) => {
+    setActiveBlocks(prev => prev.map(b => b.id === id ? { ...b, content: newContent } : b));
+  };
+
+  // Add new block
+  const handleAddBlock = (type) => {
+    const newId = `custom-${Date.now().toString(36)}`;
+    const newBlock = {
+      id: newId,
+      type: type,
+      label: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+      content: type === 'button' ? 'Action Button' : type === 'badge' ? 'FEATURED' : 'Editable Block Content',
+      subContent: type === 'card' ? 'Adjust padding, radius, and colors with sliders' : '',
+      styles: {
+        padding: type === 'button' ? 12 : 20,
+        borderRadius: brand.radius,
+        backgroundColor: type === 'button' ? brand.primary : brand.cardDark,
+        textColor: '#FFFFFF',
+        fontSize: type === 'button' ? 14 : 20,
+        width: type === 'button' ? 'auto' : '100%',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)'
+      }
+    };
+    setActiveBlocks(prev => [...prev, newBlock]);
+    setSelectedBlockId(newId);
+  };
+
+  // Delete selected block
+  const handleDeleteBlock = (id) => {
+    setActiveBlocks(prev => {
+      const filtered = prev.filter(b => b.id !== id);
+      if (selectedBlockId === id) {
+        setSelectedBlockId(filtered[0]?.id || null);
+      }
+      return filtered;
+    });
+  };
+
+  // AI Generation trigger
+  const handleGenerate = async (customPrompt = prompt) => {
+    const textToRun = customPrompt || prompt;
+    if (!textToRun || !textToRun.trim()) return;
+
     setIsGenerating(true);
-    
-    // Simulate AI thinking time
-    setTimeout(() => {
+    try {
+      const generated = await generateBlocksFromPrompt({
+        prompt: textToRun,
+        workspace: activeWorkspace,
+        brand,
+        apiKey,
+        apiProvider
+      });
+
+      if (Array.isArray(generated) && generated.length > 0) {
+        setActiveBlocks(generated);
+        setSelectedBlockId(generated[0].id);
+      }
+      setPrompt('');
+    } catch (err) {
+      console.error('Generation failure:', err);
+    } finally {
       setIsGenerating(false);
-      const lowerPrompt = customPrompt.toLowerCase();
-      
-      // Theme prompt
-      if (lowerPrompt.includes('dark mode')) setCanvasTheme('dark');
-      else if (lowerPrompt.includes('light mode')) setCanvasTheme('light');
-      
-      // UI/UX Specific prompt
-      if (lowerPrompt.includes('black') || lowerPrompt.includes('transfer button')) setCtaStyle('black');
-      
-      // Graphic Design Specific prompt
-      if (lowerPrompt.includes('cyberpunk') || lowerPrompt.includes('neon')) setGdStyle('cyberpunk');
-
-      setPrompt(''); // clear after generation
-    }, 1500);
-  };
-
-  const handleSuggestionClick = (text) => {
-    setPrompt(text);
-    handleGenerate(text);
-  };
-
-  // Dynamic Properties based on selection, theme, and drag/resize position
-  const properties = {
-    hero: { x: Math.round(232 + positions.hero.x), y: Math.round(112 + positions.hero.y), w: '280', h: '190', fill: canvasTheme === 'light' ? '2563EB' : '1E3A8A' },
-    card: { x: Math.round(536 + positions.card.x), y: Math.round(112 + positions.card.y), w: '240', h: '320', fill: canvasTheme === 'light' ? 'FFFFFF' : '1E293B' },
-    gdHeadline: { x: Math.round(40 + positions.gdHeadline.x), y: Math.round(96 + positions.gdHeadline.y), w: '320', h: '150', fill: canvasTheme === 'light' ? '1E1B4B' : 'FFFFFF' },
-    gdShape: { x: Math.round(96 + positions.gdShape.x), y: Math.round(256 + positions.gdShape.y), w: '192', h: '192', fill: '3B82F6' }
-  };
-
-  // Fallback for dynamically added elements
-  const activeProps = properties[selectedElement] || { 
-    x: Math.round(100 + (positions[selectedElement]?.x || 0)), 
-    y: Math.round(100 + (positions[selectedElement]?.y || 0)), 
-    w: sizes[selectedElement]?.w ? Math.round(sizes[selectedElement].w) : (customElements.find(e => e.id === selectedElement)?.type === 'shape' ? '96' : 'Auto'), 
-    h: sizes[selectedElement]?.h ? Math.round(sizes[selectedElement].h) : (customElements.find(e => e.id === selectedElement)?.type === 'shape' ? '96' : 'Auto'), 
-    fill: canvasTheme === 'light' ? 'E5E7EB' : '334155' 
+    }
   };
 
   return (
-    <div 
-      className="flex flex-col h-screen w-full bg-[#1e1e1e] text-[#d4d4d4] font-sans overflow-hidden selection:bg-blue-500/30"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-    >
+    <div className="flex flex-col h-screen w-full bg-[#141416] text-[#D4D4D8] font-sans overflow-hidden selection:bg-red-500/30">
       
       {/* Top Navigation Bar */}
-      <header className="h-12 border-b border-[#333333] bg-[#252525] flex items-center justify-between px-3 shrink-0 relative z-40">
-        <div className="flex items-center gap-4">
+      <header className="h-12 border-b border-[#27272A] bg-[#1A1A1E] flex items-center justify-between px-3 shrink-0 relative z-40">
+        <div className="flex items-center gap-3">
           {/* Left Panel Toggle */}
           <button 
             onClick={() => setLeftPanelOpen(!leftPanelOpen)}
-            className={`p-1.5 rounded transition-colors ${leftPanelOpen ? 'bg-[#333333] text-white' : 'hover:bg-[#333333] text-gray-300'}`}
+            className={`p-1.5 rounded transition ${leftPanelOpen ? 'bg-[#2A2A2E] text-white' : 'hover:bg-[#2A2A2E] text-zinc-400'}`}
             title="Toggle Left Sidebar"
           >
-            <Menu size={18} />
+            <Menu size={16} />
           </button>
           
-          <div className="flex items-center gap-2 cursor-pointer hover:bg-[#333333] px-2 py-1 rounded transition-colors">
-            {/* Authentic Adobe Logo SVG */}
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path fill="#FF0000" d="M15.1 2H22V22L15.1 2ZM8.9 2H2V22L8.9 2ZM12 9.4L17.6 22H13.8L12 17.5L8.5 22H5.4L12 9.4Z"/>
-            </svg>
-            <span className="font-semibold text-sm text-gray-100">Stage</span>
+          {/* Adobe Stage Logo */}
+          <div className="flex items-center gap-2 px-2 py-1 rounded">
+            <div className="w-5 h-5 rounded bg-red-600 flex items-center justify-center">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-white">
+                <path d="M15.1 2H22V22L15.1 2ZM8.9 2H2V22L8.9 2ZM12 9.4L17.6 22H13.8L12 17.5L8.5 22H5.4L12 9.4Z"/>
+              </svg>
+            </div>
+            <span className="font-bold text-sm text-white tracking-tight">Stage</span>
+            <span className="text-[10px] font-mono font-semibold bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">MVP</span>
           </div>
 
-          <div className="h-4 w-px bg-[#444444] mx-1"></div>
+          <div className="h-4 w-px bg-[#333338] mx-1"></div>
 
           {/* Interactive Workspace Dropdown */}
           <div className="relative">
             <button 
               onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-sm font-medium transition-colors ${showWorkspaceMenu ? 'bg-[#333333] text-white' : 'hover:bg-[#333333] text-gray-300'}`}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold bg-[#242428] hover:bg-[#2E2E33] text-zinc-200 border border-[#333338] transition"
             >
-              {activeWorkspace} <ChevronDown size={14} className={`text-gray-400 transition-transform ${showWorkspaceMenu ? 'rotate-180' : ''}`} />
+              {activeWorkspace} <ChevronDown size={12} className={`text-zinc-400 transition-transform ${showWorkspaceMenu ? 'rotate-180' : ''}`} />
             </button>
             
             {showWorkspaceMenu && (
-              <div className="absolute top-full left-0 mt-1 w-48 bg-[#252525] border border-[#333333] rounded-md shadow-xl py-1 z-50">
+              <div className="absolute top-full left-0 mt-1 w-48 bg-[#1E1E22] border border-[#333338] rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95">
                 <button 
-                  onClick={() => { setActiveWorkspace('UI/UX Design'); setSelectedElement('hero'); setShowWorkspaceMenu(false); }}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-[#333333] flex items-center justify-between"
+                  onClick={() => { setActiveWorkspace('UI/UX Design'); setShowWorkspaceMenu(false); }}
+                  className="w-full text-left px-3 py-2 text-xs text-zinc-200 hover:bg-[#2A2A2E] flex items-center justify-between"
                 >
-                  UI/UX Design {activeWorkspace === 'UI/UX Design' && <Check size={14} className="text-blue-500" />}
+                  <span>UI/UX Design</span>
+                  {activeWorkspace === 'UI/UX Design' && <Check size={12} className="text-red-500" />}
                 </button>
                 <button 
-                  onClick={() => { setActiveWorkspace('Graphic Design'); setSelectedElement('gdHeadline'); setShowWorkspaceMenu(false); }}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-[#333333] flex items-center justify-between"
+                  onClick={() => { setActiveWorkspace('Graphic Design'); setShowWorkspaceMenu(false); }}
+                  className="w-full text-left px-3 py-2 text-xs text-zinc-200 hover:bg-[#2A2A2E] flex items-center justify-between"
                 >
-                  Graphic Design {activeWorkspace === 'Graphic Design' && <Check size={14} className="text-blue-500" />}
+                  <span>Graphic Design</span>
+                  {activeWorkspace === 'Graphic Design' && <Check size={12} className="text-red-500" />}
                 </button>
               </div>
             )}
           </div>
 
-          <div className="h-4 w-px bg-[#444444] mx-1"></div>
-
-          <div className="flex items-center gap-2 text-sm text-gray-300">
-            <span className="hover:text-white cursor-pointer px-2 py-1 rounded hover:bg-[#333333] transition-colors">Fintech_Dashboard_v2</span>
-            <span className="text-xs px-1.5 py-0.5 rounded bg-[#333333] text-gray-400">Draft</span>
+          {/* Project Title */}
+          <div className="hidden md:flex items-center gap-2 text-xs text-zinc-400">
+            <span>Fintech_Dashboard_v2</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#27272A] text-zinc-400 font-mono">Live Sync</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex -space-x-2">
-            <div className="w-7 h-7 rounded-full bg-blue-500 border-2 border-[#252525] flex items-center justify-center text-xs text-white font-medium z-20 shadow-sm">JD</div>
-            <div className="w-7 h-7 rounded-full bg-emerald-500 border-2 border-[#252525] flex items-center justify-center text-xs text-white font-medium z-10 shadow-sm">AL</div>
-          </div>
-          
-          <div className="h-4 w-px bg-[#444444] mx-1"></div>
-          
-          <button className="p-1.5 hover:bg-[#333333] rounded text-gray-300 transition-colors" title="Present">
-            <Play size={16} fill="currentColor" />
-          </button>
-          
-          <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-sm">
-            <Share size={14} /> Share
+        {/* Right Nav Actions */}
+        <div className="flex items-center gap-2">
+          {/* Functional: AI Model & API Key Settings */}
+          <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-[#242428] hover:bg-[#2E2E33] border border-[#333338] text-zinc-300 hover:text-white transition"
+            title="Configure AI API Key"
+          >
+            <Key size={13} className={apiKey ? "text-emerald-400" : "text-zinc-400"} />
+            <span className="hidden sm:inline">AI Settings</span>
+            {apiKey && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
           </button>
 
-          <div className="h-4 w-px bg-[#444444] mx-1"></div>
+          {/* Functional: Export Code */}
+          <button 
+            onClick={() => setIsExportOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition shadow-sm"
+            title="Export React Code"
+          >
+            <Code2 size={13} />
+            <span>Export Code</span>
+          </button>
+
+          <div className="h-4 w-px bg-[#333338] mx-1"></div>
+
+          {/* Non-functional placeholder: Multi-user avatars (Greyed out for MVP roadmap) */}
+          <div className="flex -space-x-1.5 opacity-40 cursor-not-allowed" title="Multiplayer Live Sync (Roadmap Y2)">
+            <div className="w-6 h-6 rounded-full bg-zinc-700 border-2 border-[#1A1A1E] flex items-center justify-center text-[10px] text-zinc-300">JD</div>
+            <div className="w-6 h-6 rounded-full bg-zinc-800 border-2 border-[#1A1A1E] flex items-center justify-center text-[10px] text-zinc-400">AL</div>
+          </div>
+
+          {/* Non-functional placeholder: Present & Share (Greyed out) */}
+          <button className="p-1.5 text-zinc-600 cursor-not-allowed" title="Presentation Mode (Roadmap)" disabled>
+            <Play size={14} />
+          </button>
 
           {/* Right Panel Toggle */}
           <button 
             onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className={`p-1.5 rounded transition-colors ${rightPanelOpen ? 'bg-[#333333] text-white' : 'hover:bg-[#333333] text-gray-300'}`}
-            title="Toggle Right Sidebar"
+            className={`p-1.5 rounded transition ${rightPanelOpen ? 'bg-[#2A2A2E] text-white' : 'hover:bg-[#2A2A2E] text-zinc-400'}`}
+            title="Toggle Right Properties"
           >
-            <PanelRight size={18} />
+            <PanelRight size={16} />
           </button>
         </div>
       </header>
 
       {/* Toolbar */}
-      <div className="h-10 border-b border-[#333333] bg-[#1e1e1e] flex items-center justify-center gap-1 px-4 shrink-0 relative z-30">
-        <ToolButton icon={<MousePointer2 size={16} />} active />
-        <ToolButton icon={<Square size={16} />} onClick={() => addElement('shape')} title="Add Shape" />
-        <ToolButton icon={<Type size={16} />} onClick={() => addElement('text')} title="Add Text" />
-        <ToolButton icon={<Layout size={16} />} />
-        <ToolButton icon={<ImageIcon size={16} />} />
-        <div className="w-px h-4 bg-[#444444] mx-2"></div>
-        <ToolButton icon={<Folder size={16} />} title="Creative Cloud Libraries" />
+      <div className="h-9 border-b border-[#27272A] bg-[#18181B] flex items-center justify-between px-4 shrink-0 relative z-30">
+        <div className="flex items-center gap-1">
+          {/* Functional Block Adders */}
+          <button 
+            onClick={() => handleAddBlock('card')}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs rounded hover:bg-[#27272A] text-zinc-300 transition"
+            title="Add Card Block"
+          >
+            <Square size={13} /> Card
+          </button>
+          <button 
+            onClick={() => handleAddBlock('button')}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs rounded hover:bg-[#27272A] text-zinc-300 transition"
+            title="Add Button Block"
+          >
+            <Sparkles size={13} /> Button
+          </button>
+          <button 
+            onClick={() => handleAddBlock('text')}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs rounded hover:bg-[#27272A] text-zinc-300 transition"
+            title="Add Text Block"
+          >
+            <Type size={13} /> Text
+          </button>
+
+          <div className="w-px h-3.5 bg-[#333338] mx-2"></div>
+
+          {/* Non-functional placeholders: Future CC Libraries & Canvas tools */}
+          <button className="flex items-center gap-1 px-2 py-1 text-xs rounded text-zinc-600 cursor-not-allowed opacity-50" title="Vector Pen Tool (Roadmap)" disabled>
+            <MousePointer2 size={13} /> Select
+          </button>
+          <button className="flex items-center gap-1 px-2 py-1 text-xs rounded text-zinc-600 cursor-not-allowed opacity-50" title="Asset Media Store (Roadmap)" disabled>
+            <ImageIcon size={13} /> Stock
+          </button>
+          <button className="flex items-center gap-1 px-2 py-1 text-xs rounded text-zinc-600 cursor-not-allowed opacity-50" title="CC Libraries (Enterprise Integration)" disabled>
+            <Folder size={13} /> CC Libraries
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-zinc-500 font-mono">
+            {activeBlocks.length} Active Blocks
+          </span>
+        </div>
       </div>
 
-      {/* Main Workspace */}
+      {/* Main Workspace Area */}
       <div className="flex-1 flex overflow-hidden">
         
-        {/* Left Sidebar (Collapsible) */}
-        <aside className={`border-r border-[#333333] bg-[#252525] flex flex-col shrink-0 relative z-20 transition-all duration-300 ease-in-out overflow-hidden ${leftPanelOpen ? 'w-[260px]' : 'w-0'}`}>
-          <div className="w-[260px]"> {/* Fixed inner width to prevent content reflow during animation */}
-            {/* Brand Guidelines Section */}
-            <div className="p-3 border-b border-[#333333]">
+        {/* Left Sidebar: Brand Guidelines & Layer Hierarchy */}
+        <aside className={`border-r border-[#27272A] bg-[#18181B] flex flex-col shrink-0 relative z-20 transition-all duration-300 ease-in-out overflow-hidden ${leftPanelOpen ? 'w-[260px]' : 'w-0'}`}>
+          <div className="w-[260px] flex flex-col h-full">
+            
+            {/* Functional: Brand Preset Selector */}
+            <div className="p-3 border-b border-[#27272A]">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Palette size={12} /> Active Brand
+                <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                  <Palette size={12} className="text-red-500" /> Active Brand DNA
                 </span>
-                <button className="p-1 hover:bg-[#333333] rounded transition-colors"><Settings size={12} /></button>
+                <span className="text-[10px] text-emerald-400 font-mono">Cascading</span>
               </div>
-              <div className="bg-[#1e1e1e] border border-[#333333] rounded-md p-2 cursor-pointer hover:border-blue-500/50 transition-colors group">
-                <div className="text-sm font-medium text-gray-200 mb-1.5 group-hover:text-blue-400 transition-colors">Acme Corp Global</div>
-                <div className="flex gap-1">
-                  <div className="w-4 h-4 rounded-full bg-[#0F172A] shadow-sm"></div>
-                  <div className="w-4 h-4 rounded-full bg-[#3B82F6] shadow-sm"></div>
-                  <div className="w-4 h-4 rounded-full bg-[#10B981] shadow-sm"></div>
-                  <div className="w-4 h-4 rounded-full border border-[#444] bg-white shadow-sm"></div>
-                </div>
-                <div className="text-[10px] text-gray-500 mt-1.5">Inter, Roboto Mono</div>
+              
+              <div className="relative">
+                <button
+                  onClick={() => setShowBrandMenu(!showBrandMenu)}
+                  className="w-full bg-[#202024] border border-[#2E2E33] hover:border-zinc-500 rounded-lg p-2.5 text-left transition group cursor-pointer"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-semibold text-zinc-200 group-hover:text-white">{brand.name}</span>
+                    <ChevronDown size={12} className="text-zinc-500" />
+                  </div>
+                  <div className="flex gap-1.5">
+                    <div className="w-3.5 h-3.5 rounded-full shadow-sm" style={{ backgroundColor: brand.primary }}></div>
+                    <div className="w-3.5 h-3.5 rounded-full shadow-sm" style={{ backgroundColor: brand.secondary }}></div>
+                    <div className="w-3.5 h-3.5 rounded-full border border-white/20" style={{ backgroundColor: brand.cardDark }}></div>
+                  </div>
+                </button>
+
+                {showBrandMenu && (
+                  <div className="absolute top-full left-0 mt-1 w-full bg-[#1C1C20] border border-[#333338] rounded-xl shadow-2xl p-1 z-50">
+                    {Object.entries(BRAND_PRESETS).map(([key, b]) => (
+                      <button
+                        key={key}
+                        onClick={() => { setSelectedBrandKey(key); setShowBrandMenu(false); }}
+                        className="w-full p-2 text-left rounded-lg hover:bg-[#2A2A2E] transition flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: b.primary }}></div>
+                          <span className="text-zinc-200 font-medium">{b.name}</span>
+                        </div>
+                        {selectedBrandKey === key && <Check size={12} className="text-red-500" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Layers Section */}
-            <div className="flex-1 overflow-y-auto h-[calc(100vh-200px)]">
-              <div className="p-3">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                  <Layers size={12} /> Layers
+            {/* Functional: Dynamic Layer Tree */}
+            <div className="flex-1 overflow-y-auto p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                  <Layers size={12} /> Interactive Blocks ({activeBlocks.length})
                 </span>
-                <div className="space-y-0.5">
-                  {activeWorkspace === 'UI/UX Design' ? (
-                    <LayerItem name="App Dashboard Canvas" type="frame" expanded>
-                      <LayerItem name="App Sidebar Nav" type="group" />
-                      <LayerItem name="Top Search Header" type="group" />
-                      <LayerItem name="Balance Widget" type="group" selected={selectedElement === 'hero'} onClick={() => setSelectedElement('hero')} expanded>
-                        <LayerItem name="Balance Value" type="text" />
-                        <LayerItem name="Transfer Button" type="component" />
-                      </LayerItem>
-                      <LayerItem name="Transactions List" type="group" selected={selectedElement === 'card'} onClick={() => setSelectedElement('card')} expanded>
-                         <LayerItem name="List Item 1" type="component" />
-                         <LayerItem name="List Item 2" type="component" />
-                      </LayerItem>
-                      {/* Dynamic Elements in Layers */}
-                      {customElements.filter(el => el.ws === 'UI/UX Design').map((el, i) => (
-                         <LayerItem key={el.id} name={`Custom ${el.type === 'text' ? 'Text' : 'Shape'} ${i+1}`} type={el.type} selected={selectedElement === el.id} onClick={() => setSelectedElement(el.id)} />
-                      ))}
-                      <LayerItem name="Dashboard Background" type="image" />
-                    </LayerItem>
-                  ) : (
-                    <LayerItem name="Social Media Ad" type="frame" expanded>
-                      <LayerItem name="Brand Logo" type="image" />
-                      <LayerItem name="Main Headline" type="text" selected={selectedElement === 'gdHeadline'} onClick={() => setSelectedElement('gdHeadline')} />
-                      <LayerItem name="Abstract Shape" type="component" selected={selectedElement === 'gdShape'} onClick={() => setSelectedElement('gdShape')} />
-                      {/* Dynamic Elements in Layers */}
-                      {customElements.filter(el => el.ws === 'Graphic Design').map((el, i) => (
-                         <LayerItem key={el.id} name={`Custom ${el.type === 'text' ? 'Text' : 'Shape'} ${i+1}`} type={el.type} selected={selectedElement === el.id} onClick={() => setSelectedElement(el.id)} />
-                      ))}
-                      <LayerItem name="Gradient Background" type="image" />
-                    </LayerItem>
-                  )}
-                </div>
+              </div>
+
+              <div className="space-y-1">
+                {activeBlocks.map((block, idx) => (
+                  <div 
+                    key={block.id}
+                    onClick={() => setSelectedBlockId(block.id)}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition ${
+                      selectedBlockId === block.id 
+                        ? 'bg-blue-600/20 text-blue-400 font-semibold border border-blue-500/30' 
+                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#202024]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="text-[10px] font-mono text-zinc-600">{idx + 1}</span>
+                      <span className="truncate">{block.label || block.content}</span>
+                    </div>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDeleteBlock(block.id); }}
+                      className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-0.5 rounded transition"
+                      title="Remove Block"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
+
+            {/* Non-functional footer: Enterprise asset sync badge */}
+            <div className="p-3 border-t border-[#27272A] text-[10px] text-zinc-600 flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+              <span>Adobe Firefly Enterprise Guardrails active</span>
+            </div>
+
           </div>
         </aside>
 
-        {/* Canvas Area */}
-        <main className="flex-1 bg-[#121212] relative overflow-hidden flex items-center justify-center" style={{ backgroundImage: 'radial-gradient(#2a2a2a 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
-          
-          {/* Zoom controls */}
-          <div className="absolute top-4 right-4 bg-[#252525] border border-[#333333] rounded-md flex items-center shadow-lg z-20">
-            <button className="px-3 py-1.5 text-xs font-medium hover:bg-[#333333] border-r border-[#333333] rounded-l-md transition-colors">75%</button>
-            <button className="p-1.5 hover:bg-[#333333] rounded-r-md transition-colors"><Maximize size={14} /></button>
+        {/* Central Canvas Area */}
+        <main 
+          className="flex-1 bg-[#0E0E10] relative overflow-y-auto flex flex-col items-center justify-start p-8"
+          style={{ 
+            backgroundImage: 'radial-gradient(#222226 1px, transparent 1px)', 
+            backgroundSize: '24px 24px' 
+          }}
+          onClick={() => setSelectedBlockId(null)}
+        >
+
+          {/* Theme & Canvas Controls Bar */}
+          <div className="w-full max-w-3xl mb-4 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-400 font-medium">Canvas:</span>
+              <button
+                onClick={() => setCanvasTheme(canvasTheme === 'dark' ? 'light' : 'dark')}
+                className="text-xs px-2.5 py-1 rounded bg-[#1C1C20] hover:bg-[#25252A] border border-[#2E2E33] text-zinc-300 transition"
+              >
+                {canvasTheme === 'dark' ? '🌙 Dark Mode' : '☀️ Light Mode'}
+              </button>
+            </div>
+
+            <div className="text-[11px] text-zinc-500 font-mono">
+              Click any block to inspect &amp; adjust with sliders
+            </div>
           </div>
 
-          {/* The Artboard / Canvas Mockup */}
-          {activeWorkspace === 'UI/UX Design' ? (
-            // --- NEW: FINTECH APP DASHBOARD UI ---
-            <div className={`w-[800px] h-[500px] rounded-lg shadow-2xl relative overflow-hidden flex scale-[0.85] transform origin-center transition-colors duration-700 ease-in-out ${canvasTheme === 'dark' ? 'bg-[#0f172a]' : 'bg-[#f8fafc]'}`}>
-              
-              {/* App Sidebar */}
-              <div className={`w-[200px] border-r flex flex-col p-5 transition-colors duration-700 z-10 ${canvasTheme === 'dark' ? 'border-[#1e293b] bg-[#1e293b]/50' : 'border-gray-200 bg-white'}`}>
-                <div className="font-bold text-xl flex items-center gap-2 mb-8">
-                  <div className={`w-6 h-6 rounded-md ${canvasTheme === 'dark' ? 'bg-blue-500' : 'bg-blue-600'}`}></div>
-                  <span className={`transition-colors ${canvasTheme === 'dark' ? 'text-white' : 'text-gray-900'}`}>AcmeBank</span>
-                </div>
-                
-                <div className="space-y-1">
-                  <div className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${canvasTheme === 'dark' ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                    <Layout size={16} /> Dashboard
-                  </div>
-                  <div className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${canvasTheme === 'dark' ? 'text-gray-400 hover:text-white hover:bg-[#334155]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
-                    <CreditCard size={16} /> Cards
-                  </div>
-                  <div className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${canvasTheme === 'dark' ? 'text-gray-400 hover:text-white hover:bg-[#334155]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
-                    <ArrowRightLeft size={16} /> Transfers
-                  </div>
-                  <div className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${canvasTheme === 'dark' ? 'text-gray-400 hover:text-white hover:bg-[#334155]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
-                    <PieChart size={16} /> Analytics
-                  </div>
-                </div>
-              </div>
-              
-              {/* Main Content Area */}
-              <div className="flex-1 flex flex-col relative">
-                
-                {/* Overlay Loader for AI Generation Effect */}
-                {isGenerating && (
-                  <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px] z-50 flex items-center justify-center rounded-r-lg">
-                     <div className="bg-[#1e1e1e] border border-[#444] shadow-2xl rounded-full px-6 py-3 flex items-center gap-3 animate-bounce">
-                       <Sparkles className="animate-spin text-purple-500" size={20} />
-                       <span className="text-sm font-medium text-white">Stage AI is generating...</span>
-                     </div>
-                  </div>
-                )}
-
-                {/* Top Header */}
-                <div className={`h-16 border-b flex items-center justify-between px-8 transition-colors duration-700 z-10 ${canvasTheme === 'dark' ? 'border-[#1e293b]' : 'border-gray-200'}`}>
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${canvasTheme === 'dark' ? 'bg-[#1e293b] text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
-                    <Search size={14} />
-                    <span className="text-xs">Search transactions...</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Bell size={18} className={`transition-colors ${canvasTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 border-2 border-white shadow-sm"></div>
-                  </div>
-                </div>
-
-                {/* Dashboard Content */}
-                <div className="flex-1 p-8 relative">
-                  <h1 
-                    className={`text-2xl font-bold mb-6 transition-colors outline-none cursor-text ${canvasTheme === 'dark' ? 'text-white' : 'text-gray-900'}`}
-                    contentEditable
-                    suppressContentEditableWarning
-                  >
-                    Welcome back, Alex
-                  </h1>
-                  
-                  {/* Left Column: Balance Widget (Draggable ID: hero) */}
-                  <div 
-                    className={`absolute group ${draggingId === 'hero' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                    onClick={(e) => { e.stopPropagation(); setSelectedElement('hero'); }}
-                    onMouseDown={(e) => { 
-                      e.stopPropagation(); 
-                      setSelectedElement('hero');
-                      if (e.target.closest('[contenteditable="true"]')) return; // Allow text editing without dragging
-                      setDraggingId('hero'); 
-                    }}
-                    style={{ transform: `translate(${positions.hero.x}px, ${positions.hero.y}px)`, left: '32px', top: '112px', zIndex: selectedElement === 'hero' ? 10 : 1 }}
-                  >
-                    {/* Active Selection Outline */}
-                    <div className={`absolute inset-0 border-2 rounded-2xl pointer-events-none -m-2 transition-all duration-200 ${selectedElement === 'hero' ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                      {selectedElement === 'hero' && (
-                        <>
-                          <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">Balance Widget</div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Actual Widget Content */}
-                    <div className={`w-[280px] p-6 rounded-2xl shadow-xl transition-all duration-700 text-white overflow-hidden relative ${canvasTheme === 'dark' ? 'bg-gradient-to-br from-blue-800 to-indigo-900' : 'bg-gradient-to-br from-blue-600 to-blue-800'}`}>
-                      <div className="absolute -right-10 -top-10 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
-                      
-                      {/* Editable Text */}
-                      <div 
-                        className="text-blue-100 text-sm font-medium mb-1 relative z-10 outline-none cursor-text" 
-                        contentEditable 
-                        suppressContentEditableWarning
-                      >
-                        Total Balance
-                      </div>
-                      <div 
-                        className="text-3xl font-bold mb-6 relative z-10 outline-none cursor-text" 
-                        contentEditable 
-                        suppressContentEditableWarning
-                      >
-                        $24,500.00
-                      </div>
-                      
-                      <div className="flex gap-3 relative z-10 pointer-events-none">
-                        {/* Dynamic CTA Button */}
-                        <button className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-all duration-700 shadow-md ${ctaStyle === 'black' ? 'bg-[#000000] text-white shadow-black/20' : 'bg-white text-blue-900 shadow-white/10'}`}>Transfer</button>
-                        <button className="p-2 rounded-lg bg-white/20 text-white backdrop-blur-sm"><ArrowRightLeft size={16} /></button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Transactions (Draggable ID: card) */}
-                  <div 
-                    className={`absolute group ${draggingId === 'card' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                    onClick={(e) => { e.stopPropagation(); setSelectedElement('card'); }}
-                    onMouseDown={(e) => { 
-                      e.stopPropagation(); 
-                      setSelectedElement('card');
-                      if (e.target.closest('[contenteditable="true"]')) return;
-                      setDraggingId('card'); 
-                    }}
-                    style={{ transform: `translate(${positions.card.x}px, ${positions.card.y}px)`, left: '344px', top: '112px', zIndex: selectedElement === 'card' ? 10 : 1 }}
-                  >
-                    {/* Active Selection Outline */}
-                    <div className={`absolute inset-0 border-2 rounded-xl pointer-events-none -m-2 transition-all duration-200 ${selectedElement === 'card' ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                      {selectedElement === 'card' && (
-                        <>
-                          <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">Transactions List</div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Actual Widget Content */}
-                    <div className={`w-[240px] p-5 rounded-xl border shadow-sm transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-[#1e293b] border-[#334155]' : 'bg-white border-gray-200'}`}>
-                      <h3 
-                        className={`font-bold mb-4 text-sm outline-none cursor-text ${canvasTheme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}
-                        contentEditable suppressContentEditableWarning
-                      >
-                        Recent Activity
-                      </h3>
-                      <div className="space-y-4 pointer-events-none">
-                        <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-3">
-                             <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center"><CreditCard size={14}/></div>
-                             <div>
-                               <div className={`text-xs font-bold ${canvasTheme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>Apple Store</div>
-                               <div className={`text-[10px] ${canvasTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Today, 2:45 PM</div>
-                             </div>
-                           </div>
-                           <div className={`text-xs font-bold ${canvasTheme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>-$999</div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-3">
-                             <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center"><PieChart size={14}/></div>
-                             <div>
-                               <div className={`text-xs font-bold ${canvasTheme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}>Upwork Inc.</div>
-                               <div className={`text-[10px] ${canvasTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Yesterday</div>
-                             </div>
-                           </div>
-                           <div className="text-xs font-bold text-green-500">+$2,400</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Render Dynamically Added Elements (UI/UX) */}
-                  {customElements.filter(el => el.ws === 'UI/UX Design').map(el => (
-                    <div
-                      key={el.id}
-                      className={`absolute group ${draggingId === el.id ? 'cursor-grabbing' : 'cursor-grab'}`}
-                      style={{ 
-                        top: 100, left: 100, // starting point
-                        transform: `translate(${positions[el.id]?.x || 0}px, ${positions[el.id]?.y || 0}px)`, 
-                        zIndex: selectedElement === el.id ? 20 : 5 
-                      }}
-                      onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); }}
-                      onMouseDown={(e) => { 
-                        e.stopPropagation(); 
-                        setSelectedElement(el.id);
-                        if (e.target.closest('[contenteditable="true"]')) return;
-                        setDraggingId(el.id); 
-                      }}
-                    >
-                      <div className={`absolute inset-0 border-2 rounded pointer-events-none -m-1 transition-all duration-200 ${selectedElement === el.id ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                        {selectedElement === el.id && el.type === 'text' && (
-                          <>
-                            <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                            <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          </>
-                        )}
-                      </div>
-                      
-                      {el.type === 'shape' ? (
-                        <div 
-                          className={`relative shadow-lg border border-white/10 ${canvasTheme === 'dark' ? 'bg-[#334155]' : 'bg-gray-200'}`}
-                          style={{ width: sizes[el.id]?.w || 96, height: sizes[el.id]?.h || 96, borderRadius: 8 }}
-                        >
-                          {/* Resize Handle */}
-                          {selectedElement === el.id && (
-                            <div 
-                              className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-se-resize shadow-md"
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                setResizingId(el.id);
-                              }}
-                            />
-                          )}
-                        </div>
-                      ) : (
-                        <div 
-                          contentEditable 
-                          suppressContentEditableWarning
-                          className={`text-2xl font-bold whitespace-nowrap outline-none cursor-text ${canvasTheme === 'dark' ? 'text-white' : 'text-gray-800'}`}
-                        >
-                          Custom Text
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            // --- Graphic Design Workspace Canvas ---
-            <div className={`w-[400px] h-[500px] rounded-lg shadow-2xl relative overflow-hidden flex flex-col scale-[0.85] transform origin-center transition-colors duration-700 ease-in-out ${canvasTheme === 'dark' ? 'bg-gradient-to-br from-indigo-950 to-violet-950' : 'bg-gradient-to-br from-indigo-50 to-purple-100'}`}>
-              
-              {/* Overlay Loader for AI Generation Effect */}
-              {isGenerating && (
-                <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px] z-50 flex items-center justify-center rounded-lg">
-                   <div className="bg-[#1e1e1e] border border-[#444] shadow-2xl rounded-full px-6 py-3 flex items-center gap-3 animate-bounce">
-                     <Sparkles className="animate-spin text-purple-500" size={20} />
-                     <span className="text-sm font-medium text-white">Stage AI is generating...</span>
-                   </div>
-                </div>
-              )}
-
-              {/* Background abstract element (static) */}
-              <div className={`absolute -right-20 -top-20 w-80 h-80 rounded-full blur-3xl transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-pink-600/40' : 'bg-pink-300/50'}`}></div>
-              <div className={`absolute -left-20 -bottom-20 w-64 h-64 rounded-full blur-3xl transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-blue-600/40' : 'bg-blue-300/50'}`}></div>
-
-              {/* Brand Logo */}
-              <div className="absolute top-6 left-6 flex items-center gap-2 pointer-events-none z-10">
-                 <div className={`w-6 h-6 rounded-md transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-white' : 'bg-indigo-600'}`}></div>
-                 <span className={`font-bold text-sm transition-colors duration-700 ${canvasTheme === 'dark' ? 'text-white' : 'text-indigo-900'}`}>ACME</span>
-              </div>
-
-              {/* Headline Text (Draggable) */}
-              <div 
-                className={`absolute left-10 top-24 w-[320px] group ${draggingId === 'gdHeadline' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                onClick={(e) => { e.stopPropagation(); setSelectedElement('gdHeadline'); }}
-                onMouseDown={(e) => { 
-                  e.stopPropagation(); 
-                  setSelectedElement('gdHeadline');
-                  if (e.target.closest('[contenteditable="true"]')) return;
-                  setDraggingId('gdHeadline'); 
-                }}
-                style={{ transform: `translate(${positions.gdHeadline.x}px, ${positions.gdHeadline.y}px)`, zIndex: selectedElement === 'gdHeadline' ? 10 : 2 }}
-              >
-                <div className={`absolute inset-0 border-2 rounded pointer-events-none -m-2 transition-all duration-200 ${selectedElement === 'gdHeadline' ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                  {selectedElement === 'gdHeadline' && (
-                    <>
-                      <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                      <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">Main Headline</div>
-                    </>
-                  )}
-                </div>
-
-                {gdStyle === 'cyberpunk' ? (
-                  <h2 
-                    contentEditable suppressContentEditableWarning
-                    className={`text-[42px] font-mono font-bold leading-none tracking-tighter outline-none cursor-text transition-all duration-700 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-fuchsia-500 drop-shadow-[0_0_15px_rgba(0,255,255,0.4)]`}
-                  >
-                    NEO-BANKING <br/>PROTOCOL <br/><span className="text-white drop-shadow-[0_0_10px_rgba(255,0,255,0.8)]">INITIATED_</span>
-                  </h2>
-                ) : (
-                  <h2 
-                    contentEditable suppressContentEditableWarning
-                    className={`text-5xl font-black leading-none tracking-tight outline-none cursor-text transition-colors duration-700 ${canvasTheme === 'dark' ? 'text-white' : 'text-indigo-950'}`}
-                  >
-                    THE FUTURE <br/>OF DIGITAL <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-violet-500">BANKING.</span>
-                  </h2>
-                )}
-              </div>
-
-              {/* Abstract Shape (Draggable) */}
-              <div 
-                className={`absolute top-64 left-24 w-48 h-48 group ${draggingId === 'gdShape' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                onClick={(e) => { e.stopPropagation(); setSelectedElement('gdShape'); }}
-                onMouseDown={(e) => { e.stopPropagation(); setDraggingId('gdShape'); setSelectedElement('gdShape'); }}
-                style={{ transform: `translate(${positions.gdShape.x}px, ${positions.gdShape.y}px)`, zIndex: selectedElement === 'gdShape' ? 10 : 2 }}
-              >
-                <div className={`absolute inset-0 border-2 rounded-xl pointer-events-none -m-2 transition-all duration-200 ${selectedElement === 'gdShape' ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                   {selectedElement === 'gdShape' && (
-                    <>
-                      <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                      <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">Abstract Shape</div>
-                    </>
-                  )}
-                </div>
-                <div className={`w-full h-full rounded-2xl backdrop-blur-md border shadow-2xl flex items-center justify-center transform transition-all duration-700 pointer-events-none ${gdStyle === 'cyberpunk' ? 'bg-black/40 border-cyan-500/50 rotate-45' : 'rotate-12 border-white/20'} ${canvasTheme === 'dark' ? (gdStyle === 'cyberpunk' ? '' : 'bg-white/10') : 'bg-white/40'}`}>
-                   <div className={`w-24 h-24 rounded-full animate-pulse transition-all duration-700 ${gdStyle === 'cyberpunk' ? 'bg-gradient-to-tr from-cyan-400 to-fuchsia-500 shadow-[0_0_30px_rgba(0,255,255,0.6)] rounded-none rotate-45' : 'bg-gradient-to-tr from-blue-400 to-pink-400'}`}></div>
-                </div>
-              </div>
-
-               {/* Render Dynamically Added Elements (Graphic Design) */}
-               {customElements.filter(el => el.ws === 'Graphic Design').map(el => (
-                  <div
-                    key={el.id}
-                    className={`absolute group ${draggingId === el.id ? 'cursor-grabbing' : 'cursor-grab'}`}
-                    style={{ 
-                      top: 100, left: 100, // starting point
-                      transform: `translate(${positions[el.id]?.x || 0}px, ${positions[el.id]?.y || 0}px)`, 
-                      zIndex: selectedElement === el.id ? 20 : 5 
-                    }}
-                    onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); }}
-                    onMouseDown={(e) => { 
-                      e.stopPropagation(); 
-                      setSelectedElement(el.id);
-                      if (e.target.closest('[contenteditable="true"]')) return;
-                      setDraggingId(el.id); 
-                    }}
-                  >
-                    <div className={`absolute inset-0 border-2 rounded pointer-events-none -m-1 transition-all duration-200 ${selectedElement === el.id ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                      {selectedElement === el.id && el.type === 'text' && (
-                        <>
-                          <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                        </>
-                      )}
-                    </div>
-                    
-                    {el.type === 'shape' ? (
-                      <div 
-                        className={`relative shadow-lg border border-white/20 backdrop-blur-md ${canvasTheme === 'dark' ? 'bg-indigo-500/50' : 'bg-white/60'}`}
-                        style={{ width: sizes[el.id]?.w || 96, height: sizes[el.id]?.h || 96, borderRadius: 8 }}
-                      >
-                         {/* Resize Handle */}
-                         {selectedElement === el.id && (
-                          <div 
-                            className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-se-resize shadow-md"
-                            onMouseDown={(e) => {
-                              e.stopPropagation();
-                              setResizingId(el.id);
-                            }}
-                          />
-                        )}
-                      </div>
-                    ) : (
-                      <div 
-                        contentEditable suppressContentEditableWarning
-                        className={`text-2xl font-bold whitespace-nowrap outline-none cursor-text ${canvasTheme === 'dark' ? 'text-white' : 'text-indigo-900'}`}
-                      >
-                        Custom Text
-                      </div>
-                    )}
-                  </div>
-                ))}
-            </div>
-          )}
-
-          {/* AI Prompt Interface Toggle & Panel */}
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex flex-col items-center shadow-2xl z-50">
-            {!showAIPanel ? (
-              <button 
-                onClick={() => setShowAIPanel(true)}
-                className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-[1px] rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105"
-              >
-                <div className="bg-[#1e1e1e] hover:bg-[#252525] rounded-full px-6 py-3 flex items-center gap-2 transition-colors">
-                  <Sparkles size={18} className="text-purple-400" />
-                  <span className="font-semibold text-sm bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-400">
-                    Stage AI
-                  </span>
-                </div>
-              </button>
-            ) : (
-              <div className="bg-[#222222]/95 backdrop-blur-xl border border-[#444] rounded-2xl w-[560px] flex flex-col shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-300 ring-1 ring-white/10">
-                <div className="flex items-center justify-between px-4 py-2 border-b border-[#333]">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={16} className="text-purple-400" />
-                    <span className="font-medium text-sm text-gray-200">Stage AI Co-pilot</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                     <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors" title="History">
-                        <CornerUpLeft size={14} />
-                     </button>
-                     {/* Minimize Button */}
-                    <button onClick={() => setShowAIPanel(false)} className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors" title="Minimize">
-                      <Minus size={16} />
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="p-4 flex gap-4">
-                  <div className="flex-1 flex flex-col gap-3">
-                    <div className="relative">
-                      <textarea 
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleGenerate();
-                          }
-                        }}
-                        placeholder={`Describe what you want to create or change in the ${
-                          selectedElement === 'hero' ? 'Balance Widget' : 
-                          selectedElement === 'card' ? 'Transactions List' : 
-                          selectedElement === 'gdHeadline' ? 'Main Headline' : 
-                          selectedElement === 'gdShape' ? 'Abstract Shape' : 'selection'
-                        }...`}
-                        className="w-full bg-[#111] border border-[#444] rounded-lg p-3 pb-12 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 resize-none h-[110px] transition-colors"
-                      />
-                      
-                      {/* Interactive Prompt Bubbles Inside Text Area Footer */}
-                      <div className="absolute bottom-3 left-3 right-12 flex gap-2 overflow-x-auto no-scrollbar pointer-events-auto">
-                        <button 
-                          onClick={() => handleSuggestionClick(canvasTheme === 'light' ? "Make it dark mode" : "Make it light mode")}
-                          className="flex items-center gap-1.5 shrink-0 bg-[#2a2a2a] hover:bg-[#333] border border-[#444] hover:border-purple-500/50 text-gray-300 hover:text-purple-400 transition-colors px-3 py-1.5 rounded-full text-[11px] font-medium shadow-sm"
-                        >
-                          <Sparkles size={10} /> {canvasTheme === 'light' ? "Make it dark mode" : "Make it light mode"}
-                        </button>
-                        {activeWorkspace === 'UI/UX Design' ? (
-                          <button 
-                            onClick={() => handleSuggestionClick("Make transfer button black")}
-                            className="flex items-center gap-1.5 shrink-0 bg-[#2a2a2a] hover:bg-[#333] border border-[#444] hover:border-blue-500/50 text-gray-300 hover:text-white transition-colors px-3 py-1.5 rounded-full text-[11px] font-medium shadow-sm"
-                          >
-                            <Sparkles size={10} /> Make transfer button black
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={() => handleSuggestionClick("Make it cyberpunk style")}
-                            className="flex items-center gap-1.5 shrink-0 bg-[#2a2a2a] hover:bg-[#333] border border-[#444] hover:border-cyan-500/50 text-gray-300 hover:text-cyan-400 transition-colors px-3 py-1.5 rounded-full text-[11px] font-medium shadow-sm"
-                          >
-                            <Sparkles size={10} /> Make it cyberpunk style
-                          </button>
-                        )}
-                      </div>
-
-                      <button 
-                        onClick={() => handleGenerate()}
-                        disabled={isGenerating || !prompt}
-                        className={`absolute top-3 right-3 p-1.5 rounded-md transition-colors ${prompt && !isGenerating ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md' : 'bg-[#333] text-gray-500'}`}
-                      >
-                        <Wand2 size={16} />
-                      </button>
-                    </div>
-
-                    {/* Differentiator: Temperature/Style Controls */}
-                    <div className="flex flex-col gap-4 p-3 bg-[#1a1a1a] rounded-lg border border-[#333]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-400 flex items-center gap-1">
-                           <SlidersHorizontal size={12} /> Parameters
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1">
-                          <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                            <span>Wireframe</span>
-                            <span>{fidelity}% Fidelity</span>
-                            <span>High-Fi</span>
-                          </div>
-                          <input 
-                            type="range" min="0" max="100" value={fidelity} onChange={(e) => setFidelity(e.target.value)}
-                            className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-purple-500" 
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                            <span>Strict (Brand)</span>
-                            <span>{creativity}% Creative</span>
-                            <span>Exploratory</span>
-                          </div>
-                          <input 
-                            type="range" min="0" max="100" value={creativity} onChange={(e) => setCreativity(e.target.value)}
-                            className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500" 
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="px-4 py-2 bg-[#1a1a1a] border-t border-[#333] flex justify-end items-center text-xs text-gray-500">
-                  <span className="flex items-center gap-1 shrink-0 ml-4"><Sparkles size={10} className="text-purple-500"/> Powered by Firefly</span>
+          {/* The Live Interactive Artboard */}
+          <div 
+            className={`w-full max-w-3xl rounded-2xl shadow-2xl border transition-colors duration-500 p-8 min-h-[460px] flex flex-col gap-6 relative ${
+              canvasTheme === 'dark' 
+                ? 'bg-[#111114] border-[#2E2E33]' 
+                : 'bg-white border-zinc-200'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Overlay Loader during AI Synthesis */}
+            {isGenerating && (
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-40 rounded-2xl flex items-center justify-center">
+                <div className="bg-[#1C1C1F] border border-red-500/40 shadow-2xl rounded-full px-6 py-3 flex items-center gap-3 animate-pulse">
+                  <Sparkles className="animate-spin text-red-500" size={18} />
+                  <span className="text-xs font-semibold text-white font-mono">Stage AI is compiling interactive blocks...</span>
                 </div>
               </div>
             )}
+
+            {/* Render dynamic blocks */}
+            {activeBlocks.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-12 text-zinc-500">
+                <Sparkles size={32} className="text-zinc-600 mb-3" />
+                <p className="text-sm font-medium text-zinc-400">Canvas is empty</p>
+                <p className="text-xs mt-1">Type a prompt below or click '+ Card' in the toolbar to begin.</p>
+              </div>
+            ) : (
+              activeBlocks.map(block => (
+                <BlockRenderer
+                  key={block.id}
+                  block={block}
+                  isSelected={selectedBlockId === block.id}
+                  onSelect={(id) => setSelectedBlockId(id)}
+                  onUpdateContent={updateBlockContent}
+                  activeWorkspace={activeWorkspace}
+                  brand={brand}
+                />
+              ))
+            )}
+          </div>
+
+          {/* AI Prompt Dock */}
+          <div className="sticky bottom-4 mt-8 w-full max-w-2xl z-40 shadow-2xl">
+            <div className="bg-[#18181B]/95 backdrop-blur-xl border border-[#333338] rounded-2xl p-3 shadow-[0_12px_40px_rgba(0,0,0,0.6)]">
+              <div className="flex items-center justify-between pb-2 border-b border-[#27272A] mb-2 px-1">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} className="text-red-500" />
+                  <span className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+                    Stage AI Co-pilot
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-zinc-500 font-mono">
+                    {apiKey ? `${apiProvider.toUpperCase()} Live Mode` : 'Local Synthesis Mode'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Textarea */}
+              <div className="relative">
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleGenerate();
+                    }
+                  }}
+                  placeholder={
+                    activeWorkspace === 'UI/UX Design'
+                      ? "Describe a layout... e.g. 'SaaS pricing card with 3 tiers' or 'Fintech transactions summary'"
+                      : "Describe a graphic ad... e.g. 'Semi-annual product launch banner with 40% discount'"
+                  }
+                  className="w-full bg-[#101012] border border-[#2E2E33] rounded-xl p-3 pb-10 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-red-500 resize-none h-[80px]"
+                />
+
+                {/* Prompt Suggestions */}
+                <div className="absolute bottom-2.5 left-2 flex gap-1.5 overflow-x-auto max-w-[calc(100%-48px)] no-scrollbar">
+                  {activeWorkspace === 'UI/UX Design' ? (
+                    <>
+                      <button
+                        onClick={() => handleGenerate("SaaS pricing subscription card")}
+                        className="px-2 py-0.5 rounded-full bg-[#242428] hover:bg-[#2E2E33] border border-[#333338] text-[10px] text-zinc-300 shrink-0 transition"
+                      >
+                        ⚡ Pricing Card
+                      </button>
+                      <button
+                        onClick={() => handleGenerate("Analytics performance dashboard")}
+                        className="px-2 py-0.5 rounded-full bg-[#242428] hover:bg-[#2E2E33] border border-[#333338] text-[10px] text-zinc-300 shrink-0 transition"
+                      >
+                        ⚡ Analytics Metrics
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleGenerate("Semi-annual summer sale discount banner")}
+                        className="px-2 py-0.5 rounded-full bg-[#242428] hover:bg-[#2E2E33] border border-[#333338] text-[10px] text-zinc-300 shrink-0 transition"
+                      >
+                        ⚡ Promo Sale
+                      </button>
+                      <button
+                        onClick={() => handleGenerate("AI engine launch event announcement")}
+                        className="px-2 py-0.5 rounded-full bg-[#242428] hover:bg-[#2E2E33] border border-[#333338] text-[10px] text-zinc-300 shrink-0 transition"
+                      >
+                        ⚡ Product Launch
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Submit button */}
+                <button
+                  onClick={() => handleGenerate()}
+                  disabled={isGenerating || !prompt.trim()}
+                  className={`absolute bottom-2.5 right-2 p-2 rounded-lg transition ${
+                    prompt.trim() && !isGenerating 
+                      ? 'bg-red-600 hover:bg-red-500 text-white shadow-md shadow-red-500/20' 
+                      : 'bg-[#242428] text-zinc-600'
+                  }`}
+                  title="Generate Blocks"
+                >
+                  <Wand2 size={14} />
+                </button>
+              </div>
+
+            </div>
           </div>
 
         </main>
 
-        {/* Right Sidebar (Traditional Properties - Collapsible) */}
-        <aside className={`border-l border-[#333333] bg-[#252525] flex flex-col shrink-0 overflow-hidden relative z-20 transition-all duration-300 ease-in-out ${rightPanelOpen ? 'w-[280px]' : 'w-0'}`}>
-          <div className="w-[280px]"> {/* Fixed inner width */}
-            {/* Tabs */}
-            <div className="flex border-b border-[#333333]">
-              <button className="flex-1 py-2 text-sm font-medium text-white border-b-2 border-blue-500 transition-colors">Design</button>
-              <button className="flex-1 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors">Prototype</button>
-              <button className="flex-1 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors">Inspect</button>
+        {/* Right Sidebar: Direct Visual Property Controls (System 1 Autopilot) */}
+        <aside className={`border-l border-[#27272A] bg-[#18181B] flex flex-col shrink-0 overflow-hidden relative z-20 transition-all duration-300 ease-in-out ${rightPanelOpen ? 'w-[280px]' : 'w-0'}`}>
+          <div className="w-[280px] flex flex-col h-full">
+            
+            {/* Inspector Header */}
+            <div className="px-4 py-3 border-b border-[#27272A] flex items-center justify-between">
+              <span className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+                Visual Controls
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-mono">
+                No Re-Prompt
+              </span>
             </div>
 
-            <div className="p-4 space-y-6 overflow-y-auto h-[calc(100vh-100px)]">
-              
-              {/* Dynamic Selection Header */}
-              <div className="flex items-center justify-between text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">
-                {selectedElement === 'hero' ? 'Balance Widget' : 
-                 selectedElement === 'card' ? 'Transactions List' : 
-                 selectedElement === 'gdHeadline' ? 'Main Headline' : 
-                 selectedElement === 'gdShape' ? 'Abstract Shape' : 'Custom Element'}
+            {selectedBlock ? (
+              <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                
+                {/* Selected Block Info */}
+                <div className="bg-[#202024] p-2.5 rounded-xl border border-[#2E2E33]">
+                  <span className="text-[10px] font-mono text-zinc-500 uppercase block">Editing Target</span>
+                  <span className="text-xs font-bold text-white">{selectedBlock.label}</span>
+                </div>
+
+                {/* Corner Radius Slider (Direct manipulation of 'the last 10%') */}
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="font-semibold text-zinc-300">Corner Radius</span>
+                    <span className="font-mono text-zinc-400 text-[11px]">{selectedBlock.styles.borderRadius ?? 0}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="40"
+                    value={selectedBlock.styles.borderRadius ?? 8}
+                    onChange={(e) => updateSelectedStyle('borderRadius', parseInt(e.target.value, 10))}
+                    className="w-full h-1.5 bg-[#2A2A2E] rounded-lg appearance-none cursor-pointer accent-red-500"
+                  />
+                </div>
+
+                {/* Padding Slider */}
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="font-semibold text-zinc-300">Inner Padding</span>
+                    <span className="font-mono text-zinc-400 text-[11px]">{selectedBlock.styles.padding ?? 16}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="4"
+                    max="48"
+                    value={selectedBlock.styles.padding ?? 16}
+                    onChange={(e) => updateSelectedStyle('padding', parseInt(e.target.value, 10))}
+                    className="w-full h-1.5 bg-[#2A2A2E] rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  />
+                </div>
+
+                {/* Font Size Slider */}
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="font-semibold text-zinc-300">Typography Size</span>
+                    <span className="font-mono text-zinc-400 text-[11px]">{selectedBlock.styles.fontSize ?? 16}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="48"
+                    value={selectedBlock.styles.fontSize ?? 16}
+                    onChange={(e) => updateSelectedStyle('fontSize', parseInt(e.target.value, 10))}
+                    className="w-full h-1.5 bg-[#2A2A2E] rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  />
+                </div>
+
+                {/* Background Fill (Color Picker & Presets) */}
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="font-semibold text-zinc-300">Background Fill</span>
+                    <span className="font-mono text-zinc-400 text-[11px]">{selectedBlock.styles.backgroundColor}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={selectedBlock.styles.backgroundColor?.startsWith('#') ? selectedBlock.styles.backgroundColor : '#1E293B'}
+                      onChange={(e) => updateSelectedStyle('backgroundColor', e.target.value)}
+                      className="w-8 h-8 rounded border border-[#333338] bg-transparent cursor-pointer"
+                    />
+                    <div className="flex gap-1">
+                      {[brand.primary, brand.secondary, '#1E293B', '#0F172A', '#000000', '#FFFFFF'].map((color, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => updateSelectedStyle('backgroundColor', color)}
+                          className="w-5 h-5 rounded-full border border-white/20 transition hover:scale-110"
+                          style={{ backgroundColor: color }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Text Color */}
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="font-semibold text-zinc-300">Text Color</span>
+                    <span className="font-mono text-zinc-400 text-[11px]">{selectedBlock.styles.textColor}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={selectedBlock.styles.textColor?.startsWith('#') ? selectedBlock.styles.textColor : '#FFFFFF'}
+                      onChange={(e) => updateSelectedStyle('textColor', e.target.value)}
+                      className="w-8 h-8 rounded border border-[#333338] bg-transparent cursor-pointer"
+                    />
+                    <div className="flex gap-1">
+                      {['#FFFFFF', '#F8FAFC', '#94A3B8', '#0F172A', brand.primary, '#34D399'].map((color, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => updateSelectedStyle('textColor', color)}
+                          className="w-5 h-5 rounded-full border border-white/20 transition hover:scale-110"
+                          style={{ backgroundColor: color }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Delete Block */}
+                <div className="pt-4 border-t border-[#27272A]">
+                  <button
+                    onClick={() => handleDeleteBlock(selectedBlock.id)}
+                    className="w-full py-1.5 px-3 rounded-lg border border-red-500/30 hover:bg-red-500/10 text-red-400 text-xs font-semibold transition flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 size={13} /> Remove Block
+                  </button>
+                </div>
+
               </div>
+            ) : (
+              <div className="flex-1 p-6 flex flex-col items-center justify-center text-center text-zinc-500">
+                <MousePointer2 size={24} className="mb-2 text-zinc-600" />
+                <p className="text-xs">No block selected</p>
+                <p className="text-[11px] text-zinc-600 mt-1">Select any element on the canvas to edit its properties.</p>
+              </div>
+            )}
 
-              {/* Alignment & Coordinates */}
-              <section>
-                <div className="flex justify-between mb-4">
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignLeft size={16}/></button>
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignCenter size={16}/></button>
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignRight size={16}/></button>
-                  <div className="w-px h-4 bg-[#444] self-center"></div>
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignLeft size={16} className="rotate-90"/></button>
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignCenter size={16} className="rotate-90"/></button>
-                  <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors"><AlignRight size={16} className="rotate-90"/></button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <NumberInput label="X" value={activeProps.x} />
-                  <NumberInput label="Y" value={activeProps.y} />
-                  <NumberInput label="W" value={activeProps.w} />
-                  <NumberInput label="H" value={activeProps.h} />
-                </div>
-              </section>
-
-              <Divider />
-
-              {/* Layout */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-200">Layout</span>
-                  <button className="p-1 hover:bg-[#333] rounded transition-colors"><Layout size={12}/></button>
-                </div>
-                <div className="bg-[#1e1e1e] border border-[#333] rounded p-2 flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Flex</span>
-                  <span className="text-gray-200">
-                    {selectedElement === 'hero' ? 'Column' : 
-                     selectedElement === 'card' ? 'Center' : 'Absolute'}
-                  </span>
-                </div>
-              </section>
-
-              <Divider />
-
-              {/* Fill */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-200">Fill</span>
-                  <button className="text-lg leading-none hover:text-white transition-colors">+</button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-6 h-6 rounded border border-[#444] cursor-pointer transition-colors duration-700"
-                    style={{ backgroundColor: `#${activeProps.fill}` }}
-                  ></div>
-                  <span className="text-sm text-gray-200 font-mono transition-colors truncate">{activeProps.fill}</span>
-                  <span className="text-sm text-gray-500 ml-auto">100%</span>
-                </div>
-              </section>
-
-              <Divider />
-
-              {/* Stroke */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-200">Stroke</span>
-                  <button className="text-lg leading-none hover:text-white transition-colors">+</button>
-                </div>
-              </section>
-
-               <Divider />
-
-              {/* Effects */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-200">Effects</span>
-                  <button className="text-lg leading-none hover:text-white transition-colors">+</button>
-                </div>
-              </section>
+            {/* Non-functional placeholder: Advanced CSS & Blend Modes (Greyed out for MVP) */}
+            <div className="p-3 border-t border-[#27272A] opacity-40 cursor-not-allowed">
+              <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                <span>Advanced Blend Modes</span>
+                <span className="font-mono text-[9px]">Roadmap</span>
+              </div>
             </div>
+
           </div>
         </aside>
 
       </div>
+
+      {/* Modals */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        apiKey={apiKey}
+        onSaveApiKey={handleSaveApiKey}
+        apiProvider={apiProvider}
+        onChangeProvider={handleChangeProvider}
+      />
+
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        blocks={activeBlocks}
+        workspace={activeWorkspace}
+        brand={brand}
+      />
+
     </div>
   );
 };
-
-// UI Helper Components
-const ToolButton = ({ icon, active, title, onClick }) => (
-  <button 
-    title={title}
-    onClick={onClick}
-    className={`p-2 rounded-md transition-colors ${
-      active ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-100 hover:bg-[#333333]'
-    }`}
-  >
-    {icon}
-  </button>
-);
-
-const LayerItem = ({ name, type, selected, expanded, onClick, children }) => {
-  const getIcon = () => {
-    switch(type) {
-      case 'frame': return <Layout size={12} />;
-      case 'group': return <Folder size={12} />;
-      case 'text': return <Type size={12} />;
-      case 'image': return <ImageIcon size={12} />;
-      case 'component': return <Layers size={12} className="text-purple-400" />;
-      case 'shape': return <Square size={12} />;
-      default: return <Square size={12} />;
-    }
-  };
-
-  return (
-    <div>
-      <div 
-        onClick={onClick}
-        className={`flex items-center gap-1.5 px-2 py-1.5 rounded cursor-pointer transition-colors ${selected ? 'bg-blue-600/20 text-blue-400' : 'text-gray-300 hover:bg-[#333333]'}`}
-      >
-        <span className="w-3 flex justify-center text-gray-500">
-          {(type === 'frame' || type === 'group') && (
-            <ChevronDown size={12} className={`transform transition-transform ${expanded ? '' : '-rotate-90'}`} />
-          )}
-        </span>
-        {getIcon()}
-        <span className="text-xs font-medium truncate">{name}</span>
-      </div>
-      {expanded && children && (
-        <div className="ml-4 border-l border-[#444] pl-1 mt-0.5">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const NumberInput = ({ label, value }) => (
-  <div className="flex items-center bg-[#1e1e1e] border border-[#333333] rounded hover:border-[#555] transition-colors overflow-hidden">
-    <span className="text-xs text-gray-500 px-2 py-1 select-none">{label}</span>
-    <input 
-      type="text" 
-      value={value}
-      readOnly
-      className="bg-transparent w-full text-sm text-gray-200 outline-none py-1 pointer-events-none"
-    />
-  </div>
-);
-
-const Divider = () => <div className="h-px w-full bg-[#333333]"></div>;
 
 export default App;
