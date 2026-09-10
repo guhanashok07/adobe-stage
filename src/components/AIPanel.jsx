@@ -55,7 +55,7 @@ export default function AIPanel({
         </button>
       </div>
 
-      <div className="p-3.5 space-y-3">
+      <div className="p-3 space-y-2.5">
         <div className="relative">
           <textarea
             value={prompt}
@@ -68,7 +68,7 @@ export default function AIPanel({
               }
             }}
             placeholder={`Describe an app or campaign to generate, or a change to make to the ${selectionLabel}…`}
-            className="w-full h-[76px] bg-spectrum-900 border border-spectrum-400 rounded-[4px] p-3 pr-11 text-[13px] text-spectrum-50 placeholder-spectrum-200/70 focus:outline-none focus:border-accent resize-none transition-colors"
+            className="w-full h-[60px] bg-spectrum-900 border border-spectrum-400 rounded-[4px] p-3 pr-11 text-[13px] text-spectrum-50 placeholder-spectrum-200/70 focus:outline-none focus:border-accent resize-none transition-colors"
           />
           <button
             onClick={() => onGenerate()}
@@ -97,7 +97,7 @@ export default function AIPanel({
           ))}
         </div>
 
-        <div className="p-3 bg-spectrum-800 rounded-[4px] border border-spectrum-400 space-y-3">
+        <div className="px-3 py-2.5 bg-spectrum-800 rounded-[4px] border border-spectrum-400 space-y-2">
           <span className="text-[11px] font-medium text-spectrum-100 flex items-center gap-1.5">
             <SlidersHorizontal size={11} /> Parameters
           </span>

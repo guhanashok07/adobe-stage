@@ -51,8 +51,35 @@ export default function App() {
   const gesture = useRef(null);
   const [draggingId, setDraggingId] = useState(null);
 
+  // Zoom is derived from the space the canvas actually has. A hardcoded scale
+  // clipped the artboard whenever the window was short or the AI panel open.
+  const viewportRef = useRef(null);
+  const [scale, setScale] = useState(CANVAS_SCALE);
+  // The mousemove handler needs the current scale without re-subscribing, so
+  // the fit effect writes it to a ref alongside the state.
+  const scaleRef = useRef(CANVAS_SCALE);
+
   const wireframe = fidelity < 35;
   const otherWorkspace = workspace === 'UI/UX Design' ? 'Graphic Design' : 'UI/UX Design';
+
+  useEffect(() => {
+    const node = viewportRef.current;
+    if (!node) return;
+
+    const board = ARTBOARDS[workspace];
+    const fit = () => {
+      const { width, height } = node.getBoundingClientRect();
+      if (!width || !height) return;
+      const next = Math.max(0.25, Number(Math.min(1, (width - 72) / board.w, (height - 72) / board.h).toFixed(3)));
+      scaleRef.current = next;
+      setScale(next);
+    };
+
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [workspace, aiOpen]);
 
   const commit = useCallback((updater) => dispatch({ type: 'commit', updater }), []);
   const amend = useCallback((updater) => dispatch({ type: 'amend', updater }), []);
@@ -113,8 +140,8 @@ export default function App() {
     const g = gesture.current;
     if (!g) return;
 
-    const dx = e.movementX / CANVAS_SCALE;
-    const dy = e.movementY / CANVAS_SCALE;
+    const dx = e.movementX / scaleRef.current;
+    const dy = e.movementY / scaleRef.current;
 
     if (g.kind === 'drag') {
       amend((d) => ({
@@ -531,18 +558,20 @@ export default function App() {
           <LayersPanel doc={doc} workspace={workspace} selectedId={visibleSelection} onSelect={select} />
         </aside>
 
+        {/* The AI panel is docked below the artboard rather than floating over
+            it. Overlaying meant the panel covered the lower third of the
+            design you were editing. */}
         <main
-          className="flex-1 bg-spectrum-900 relative overflow-hidden grid place-items-center"
+          className="flex-1 bg-spectrum-900 relative overflow-hidden flex flex-col"
           style={{ backgroundImage: 'radial-gradient(#2A2A2A 1px, transparent 1px)', backgroundSize: '24px 24px' }}
-          onMouseDown={() => setSelectedId(null)}
         >
           <div className="absolute top-3 right-3 flex items-center h-8 bg-spectrum-700 border border-spectrum-400 rounded-[4px] shadow-panel z-20 overflow-hidden">
             <span className="px-3 text-[12px] font-medium text-spectrum-100 tabular border-r border-spectrum-400 leading-8">
-              {Math.round(CANVAS_SCALE * 100)}%
+              {Math.round(scale * 100)}%
             </span>
-            <button className="w-8 h-8 grid place-items-center text-spectrum-100 hover:bg-spectrum-500 transition-colors" title="Fit to screen">
+            <span className="w-8 h-8 grid place-items-center text-spectrum-100" title="Zoom follows the window size">
               <Maximize2 size={13} />
-            </button>
+            </span>
           </div>
 
           {wireframe && (
@@ -552,18 +581,21 @@ export default function App() {
           )}
 
           <div
-            style={{ transform: `scale(${CANVAS_SCALE})` }}
-            onMouseDown={(e) => e.stopPropagation()}
+            ref={viewportRef}
+            className="flex-1 min-h-0 grid place-items-center overflow-hidden"
+            onMouseDown={() => setSelectedId(null)}
           >
-            {workspace === 'UI/UX Design'
-              ? <UIUXArtboard {...artboardProps} />
-              : <GraphicArtboard {...artboardProps} />}
+            <div
+              style={{ transform: `scale(${scale})` }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {workspace === 'UI/UX Design'
+                ? <UIUXArtboard {...artboardProps} />
+                : <GraphicArtboard {...artboardProps} />}
+            </div>
           </div>
 
-          <div
-            className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
+          <div className="shrink-0 flex justify-center px-4 pb-4">
             <AIPanel
               open={aiOpen}
               onOpen={() => setAiOpen(true)}

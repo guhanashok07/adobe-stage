@@ -25,6 +25,8 @@ You MUST respond with ONLY a valid JSON object (no markdown formatting, no code 
   "gdStyle": "modern" | "cyberpunk" | null,
   "prototype": {
     "appName": "Short brand name (e.g. AcmeBank, SoundWave, FitTrack, OrbitCrypto)",
+    "navItems": ["4 sidebar nav labels for THIS domain, one or two words each (e.g. Dashboard, Orders, Products, Customers)"],
+    "searchPlaceholder": "Placeholder for the top search field, matching the domain (e.g. Search orders...)",
     "greeting": "Personalized headline (e.g. Welcome back, Alex or Today's Market Pulse)",
     "statLabel": "Key metric label (e.g. Total Balance, Listening Time, Calories Burned)",
     "statValue": "Key metric value (e.g. $24,500.00, 14.8 hrs, 2,340 kcal)",
@@ -43,6 +45,7 @@ You MUST respond with ONLY a valid JSON object (no markdown formatting, no code 
 
 Rules:
 - Adapt the prototype fields to whatever domain the user asked for (fintech, music, crypto, ecommerce, health, social, etc.).
+- navItems and searchPlaceholder MUST match the domain. A shopping app does not have a "Transfers" tab and does not "Search transactions". Getting this wrong makes the result look like a banking template with the words swapped.
 - Set "theme" to "dark" or "light" if the domain or prompt calls for it.
 - Set "gdStyle" to "cyberpunk" for tech/cyber/futuristic prompts, or "modern" otherwise.
 - Keep text concise and realistic.`;
@@ -149,6 +152,13 @@ function parseAIResponse(text) {
   const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
   const parsed = JSON.parse(cleaned);
 
+  if (parsed.prototype) {
+    const nav = parsed.prototype.navItems;
+    parsed.prototype.navItems = Array.isArray(nav) && nav.length
+      ? nav.slice(0, 4).map(String)
+      : undefined;
+  }
+
   return {
     theme: parsed.theme || null,
     ctaStyle: parsed.ctaStyle || null,
@@ -174,7 +184,10 @@ const DOMAINS = [
     keywords: ['crypto', 'bitcoin', 'btc', 'ethereum', 'web3', 'wallet', 'defi', 'token', 'blockchain', 'nft'],
     theme: 'dark', gdStyle: 'cyberpunk',
     data: {
-      appName: 'OrbitCrypto', greeting: 'Portfolio Overview',
+      appName: 'OrbitCrypto', 
+      navItems: ['Portfolio', 'Markets', 'Swap', 'Activity'],
+      searchPlaceholder: 'Search assets…',
+      greeting: 'Portfolio Overview',
       statLabel: 'Net Crypto Assets', statValue: '₿ 4.8250 BTC',
       ctaLabel: 'Swap Tokens', activityTitle: 'Live Orders',
       items: [
@@ -189,7 +202,10 @@ const DOMAINS = [
     keywords: ['music', 'spotify', 'song', 'audio', 'podcast', 'streaming', 'playlist', 'radio', 'album'],
     theme: 'dark', gdStyle: 'modern',
     data: {
-      appName: 'SoundStage', greeting: 'Now Streaming',
+      appName: 'SoundStage', 
+      navItems: ['Home', 'Library', 'Discover', 'Radio'],
+      searchPlaceholder: 'Search songs, artists…',
+      greeting: 'Now Streaming',
       statLabel: 'Listening This Week', statValue: '28.4 hrs',
       ctaLabel: 'Play Mix', activityTitle: 'Heavy Rotation',
       items: [
@@ -204,7 +220,10 @@ const DOMAINS = [
     keywords: ['fitness', 'gym', 'workout', 'health', 'running', 'training', 'exercise', 'yoga', 'wellness', 'steps'],
     theme: 'light', gdStyle: 'modern',
     data: {
-      appName: 'PulseFit', greeting: 'Morning Session, Alex',
+      appName: 'PulseFit', 
+      navItems: ['Today', 'Workouts', 'Progress', 'Plans'],
+      searchPlaceholder: 'Search exercises…',
+      greeting: 'Morning Session, Alex',
       statLabel: 'Active Calories', statValue: '1,840 kcal',
       ctaLabel: 'Start Workout', activityTitle: "Today's Milestones",
       items: [
@@ -219,7 +238,10 @@ const DOMAINS = [
     keywords: ['ecommerce', 'commerce', 'store', 'shop', 'shopping', 'cart', 'retail', 'marketplace', 'seller', 'merchant', 'order'],
     theme: 'light', gdStyle: 'modern',
     data: {
-      appName: 'AuraMarket', greeting: 'Store Revenue Today',
+      appName: 'AuraMarket', 
+      navItems: ['Dashboard', 'Orders', 'Products', 'Customers'],
+      searchPlaceholder: 'Search orders…',
+      greeting: 'Store Revenue Today',
       statLabel: 'Gross Merchandise Value', statValue: '$18,920.50',
       ctaLabel: 'View Orders', activityTitle: 'Recent Orders',
       items: [
@@ -234,7 +256,10 @@ const DOMAINS = [
     keywords: ['saas', 'analytics', 'cloud', 'metrics', 'devops', 'infrastructure', 'api', 'monitoring', 'platform', 'b2b'],
     theme: 'dark', gdStyle: 'modern',
     data: {
-      appName: 'CloudMetrics', greeting: 'Production Cluster 04',
+      appName: 'CloudMetrics', 
+      navItems: ['Overview', 'Services', 'Deploys', 'Alerts'],
+      searchPlaceholder: 'Search services…',
+      greeting: 'Production Cluster 04',
       statLabel: 'Monthly Recurring Revenue', statValue: '$84,120',
       ctaLabel: 'Deploy v2.4', activityTitle: 'Recent Deployments',
       items: [
@@ -249,7 +274,10 @@ const DOMAINS = [
     keywords: ['bank', 'banking', 'fintech', 'finance', 'payment', 'invoice', 'budget', 'savings', 'lending', 'card'],
     theme: 'light', gdStyle: 'modern',
     data: {
-      appName: 'AcmeBank', greeting: 'Welcome back, Alex',
+      appName: 'AcmeBank', 
+      navItems: ['Dashboard', 'Cards', 'Transfers', 'Analytics'],
+      searchPlaceholder: 'Search transactions…',
+      greeting: 'Welcome back, Alex',
       statLabel: 'Total Balance', statValue: '$24,500.00',
       ctaLabel: 'Transfer', activityTitle: 'Recent Activity',
       items: [
@@ -264,7 +292,10 @@ const DOMAINS = [
     keywords: ['travel', 'flight', 'hotel', 'trip', 'booking', 'airline', 'holiday', 'vacation', 'itinerary', 'tourism'],
     theme: 'light', gdStyle: 'modern',
     data: {
-      appName: 'Wayfare', greeting: 'Your Next Trip',
+      appName: 'Wayfare', 
+      navItems: ['Trips', 'Explore', 'Bookings', 'Saved'],
+      searchPlaceholder: 'Search destinations…',
+      greeting: 'Your Next Trip',
       statLabel: 'Trip Budget Remaining', statValue: '$1,240.00',
       ctaLabel: 'Book Flight', activityTitle: 'Upcoming Itinerary',
       items: [
@@ -279,7 +310,10 @@ const DOMAINS = [
     keywords: ['food', 'restaurant', 'delivery', 'recipe', 'meal', 'kitchen', 'grocery', 'cafe', 'menu', 'dining'],
     theme: 'light', gdStyle: 'modern',
     data: {
-      appName: 'Fork&Field', greeting: 'Kitchen Dashboard',
+      appName: 'Fork&Field', 
+      navItems: ['Kitchen', 'Orders', 'Menu', 'Reservations'],
+      searchPlaceholder: 'Search dishes…',
+      greeting: 'Kitchen Dashboard',
       statLabel: 'Orders Today', statValue: '312 covers',
       ctaLabel: 'Start Order', activityTitle: 'Live Tickets',
       items: [
@@ -294,7 +328,10 @@ const DOMAINS = [
     keywords: ['education', 'learning', 'course', 'student', 'school', 'university', 'teaching', 'study', 'tutor', 'lesson'],
     theme: 'light', gdStyle: 'modern',
     data: {
-      appName: 'Lumen', greeting: 'Welcome back, Priya',
+      appName: 'Lumen', 
+      navItems: ['Dashboard', 'Courses', 'Assignments', 'Grades'],
+      searchPlaceholder: 'Search courses…',
+      greeting: 'Welcome back, Priya',
       statLabel: 'Course Progress', statValue: '68% complete',
       ctaLabel: 'Resume Lesson', activityTitle: 'This Week',
       items: [
@@ -309,7 +346,10 @@ const DOMAINS = [
     keywords: ['social', 'community', 'chat', 'messaging', 'feed', 'network', 'forum', 'creator', 'follower'],
     theme: 'dark', gdStyle: 'modern',
     data: {
-      appName: 'Commons', greeting: 'Your Circle Today',
+      appName: 'Commons', 
+      navItems: ['Feed', 'Messages', 'Groups', 'Profile'],
+      searchPlaceholder: 'Search people…',
+      greeting: 'Your Circle Today',
       statLabel: 'Reach This Week', statValue: '48.2k people',
       ctaLabel: 'New Post', activityTitle: 'Recent Activity',
       items: [
@@ -324,7 +364,10 @@ const DOMAINS = [
     keywords: ['real estate', 'property', 'rent', 'rental', 'housing', 'apartment', 'mortgage', 'landlord', 'listing'],
     theme: 'light', gdStyle: 'modern',
     data: {
-      appName: 'Keystone', greeting: 'Portfolio Overview',
+      appName: 'Keystone', 
+      navItems: ['Portfolio', 'Listings', 'Tenants', 'Maintenance'],
+      searchPlaceholder: 'Search properties…',
+      greeting: 'Portfolio Overview',
       statLabel: 'Monthly Rent Roll', statValue: '$42,800',
       ctaLabel: 'Add Listing', activityTitle: 'Recent Activity',
       items: [
@@ -339,7 +382,10 @@ const DOMAINS = [
     keywords: ['job', 'jobs', 'hiring', 'recruiting', 'recruitment', 'career', 'applicant', 'candidate', 'resume', 'ats'],
     theme: 'light', gdStyle: 'modern',
     data: {
-      appName: 'Shortlist', greeting: 'Pipeline Overview',
+      appName: 'Shortlist', 
+      navItems: ['Pipeline', 'Roles', 'Candidates', 'Interviews'],
+      searchPlaceholder: 'Search candidates…',
+      greeting: 'Pipeline Overview',
       statLabel: 'Active Candidates', statValue: '148 in pipeline',
       ctaLabel: 'Post a Role', activityTitle: 'Needs Your Review',
       items: [
@@ -435,15 +481,19 @@ function deriveFromPrompt(prompt) {
   const brandWords = words.slice(0, 2).map(cap);
   const appName = brandWords.join('').slice(0, 16) || 'Stage';
 
+  const noun = cap(words[0]);
+
   return {
     appName,
+    navItems: ['Overview', `${noun}s`, 'Activity', 'Settings'],
+    searchPlaceholder: `Search ${words[0]}s…`,
     greeting: `${titleCase(words.slice(0, 2))} Overview`,
     statLabel: 'Active This Month',
     statValue: '2,480 users',
-    ctaLabel: `New ${cap(words[0])}`,
+    ctaLabel: `New ${noun}`,
     activityTitle: 'Recent Activity',
     items: [
-      { title: `${cap(words[0])} created`, sub: 'Today, 9:12 AM', amount: '+18%' },
+      { title: `${noun} created`, sub: 'Today, 9:12 AM', amount: '+18%' },
       { title: `${subject} review`, sub: 'Awaiting approval', amount: 'Pending' },
     ],
     gdBrand: (words[0] || 'stage').toUpperCase().slice(0, 10),

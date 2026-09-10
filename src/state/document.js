@@ -37,6 +37,8 @@ export const INITIAL_DOC = {
   gdStyle: 'modern',
   content: {
     appName: 'AcmeBank',
+    navItems: ['Dashboard', 'Cards', 'Transfers', 'Analytics'],
+    searchPlaceholder: 'Search transactions…',
     greeting: 'Welcome back, Alex',
     statLabel: 'Total Balance',
     statValue: '$24,500.00',
@@ -126,6 +128,10 @@ export function geometryOf(id, doc) {
 }
 
 export function labelOf(id, doc) {
+  // Prefer the generated name over the template's own, so selecting the hero
+  // card on a shopping app reads "Cart Value", not "Balance Widget".
+  if (id === 'hero') return doc?.content?.statLabel || ELEMENTS.hero.label;
+  if (id === 'card') return doc?.content?.activityTitle || ELEMENTS.card.label;
   if (ELEMENTS[id]) return ELEMENTS[id].label;
   const el = doc.custom.find((e) => e.id === id);
   if (!el) return 'No selection';

@@ -45,14 +45,14 @@ export default function LayersPanel({ doc, workspace, selectedId, onSelect }) {
               <LayerItem name="App Sidebar Nav" type="group" />
               <LayerItem name="Top Search Header" type="group" />
               <LayerItem
-                name="Balance Widget" type="group" expanded
+                name={doc.content.statLabel || 'Balance Widget'} type="group" expanded
                 selected={selectedId === 'hero'} onClick={() => onSelect('hero')}
               >
-                <LayerItem name="Balance Value" type="text" />
-                <LayerItem name="Transfer Button" type="component" />
+                <LayerItem name={doc.content.statValue || 'Value'} type="text" />
+                <LayerItem name={`${doc.content.ctaLabel || 'Action'} Button`} type="component" />
               </LayerItem>
               <LayerItem
-                name="Transactions List" type="group" expanded
+                name={doc.content.activityTitle || 'Transactions List'} type="group" expanded
                 selected={selectedId === 'card'} onClick={() => onSelect('card')}
               >
                 {(doc.content.items || []).map((item, i) => (

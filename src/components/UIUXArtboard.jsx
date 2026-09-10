@@ -1,7 +1,41 @@
 import React from 'react';
-import { Layout, CreditCard, ArrowRightLeft, PieChart, Search, Bell } from 'lucide-react';
+import {
+  Layout, CreditCard, ArrowRightLeft, PieChart, Search, Bell,
+  ShoppingCart, Package, Music, Activity, Calendar, MessageSquare,
+  Users, Heart, Settings, Compass, Briefcase, GraduationCap, Home, Building2,
+} from 'lucide-react';
 import CanvasElement from './CanvasElement';
 import { Editable } from './primitives';
+
+// Nav labels are generated per domain, so the icon has to follow the word
+// rather than sit in a fixed slot. Falls back to the slot's default.
+const NAV_ICON_RULES = [
+  [/cart|basket|bag|checkout/, ShoppingCart],
+  [/order|package|shipment|deliver|product|inventory/, Package],
+  [/music|song|track|library|radio|playlist|listen/, Music],
+  [/workout|exercise|training|progress|activity|today|health/, Activity],
+  [/calendar|schedule|booking|reservation|plan|trip|itinerar/, Calendar],
+  [/message|chat|inbox|feed|comment/, MessageSquare],
+  [/people|customer|tenant|candidate|user|member|group|team/, Users],
+  [/saved|wishlist|favourite|favorite|like/, Heart],
+  [/setting|config|admin|preference/, Settings],
+  [/explore|discover|market|browse|search/, Compass],
+  [/job|role|pipeline|career|hiring|interview/, Briefcase],
+  [/course|assignment|grade|lesson|class|study/, GraduationCap],
+  [/propert|listing|estate|house|rent|maintenance/, Building2],
+  [/home|dashboard|overview|portfolio|feed/, Home],
+  [/card|wallet|payment|billing/, CreditCard],
+  [/transfer|swap|exchange|send/, ArrowRightLeft],
+  [/analytic|report|metric|insight|stat|alert|deploy|service/, PieChart],
+];
+
+const SLOT_DEFAULTS = [Layout, CreditCard, ArrowRightLeft, PieChart];
+
+function navIcon(label, slot) {
+  const lower = String(label).toLowerCase();
+  const rule = NAV_ICON_RULES.find(([re]) => re.test(lower));
+  return rule ? rule[1] : SLOT_DEFAULTS[slot % SLOT_DEFAULTS.length];
+}
 
 // The fintech dashboard surface. Every visible string comes from doc.content,
 // so one prompt re-skins the whole screen and every string stays hand-editable.
@@ -16,6 +50,8 @@ export default function UIUXArtboard({
     width: doc.sizes[id]?.w ? `${doc.sizes[id].w}px` : `${w}px`,
     height: doc.sizes[id]?.h ? `${doc.sizes[id].h}px` : (h ? `${h}px` : undefined),
   });
+
+  const navItems = (c.navItems?.length ? c.navItems : ['Dashboard', 'Cards', 'Transfers', 'Analytics']).slice(0, 4);
 
   const navItem = (Icon, label, active) => (
     <div
@@ -54,10 +90,7 @@ export default function UIUXArtboard({
         </div>
 
         <div className="space-y-0.5">
-          {navItem(Layout, 'Dashboard', true)}
-          {navItem(CreditCard, 'Cards', false)}
-          {navItem(ArrowRightLeft, 'Transfers', false)}
-          {navItem(PieChart, 'Analytics', false)}
+          {navItems.map((label, i) => navItem(navIcon(label, i), label, i === 0))}
         </div>
       </div>
 
@@ -70,7 +103,7 @@ export default function UIUXArtboard({
             dark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'
           }`}>
             <Search size={14} />
-            <span className="text-[11px]">Search transactions…</span>
+            <span className="text-[11px] truncate max-w-[150px]">{c.searchPlaceholder || 'Search…'}</span>
           </div>
           <div className="flex items-center gap-4">
             <Bell size={17} className={dark ? 'text-slate-400' : 'text-slate-400'} />
@@ -89,7 +122,7 @@ export default function UIUXArtboard({
           {/* Balance widget */}
           <CanvasElement
             id="hero"
-            label="Balance Widget"
+            label={c.statLabel || 'Balance Widget'}
             selected={selectedId === 'hero'}
             dragging={draggingId === 'hero'}
             radius="rounded-2xl"
@@ -143,7 +176,7 @@ export default function UIUXArtboard({
           {/* Transactions list */}
           <CanvasElement
             id="card"
-            label="Transactions List"
+            label={c.activityTitle || 'Transactions List'}
             selected={selectedId === 'card'}
             dragging={draggingId === 'card'}
             radius="rounded-xl"
