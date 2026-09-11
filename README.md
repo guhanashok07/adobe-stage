@@ -44,10 +44,10 @@ Every prompt-only tool forces visual thinkers to work in System 2 forever. Stage
 This is the whole argument, and you can run it yourself on the [live prototype](https://adobestageproto.netlify.app/). No account, no API key, no install. On first load a ghost cursor runs the whole argument by itself in about nine seconds, silently, and hands control back the moment you touch anything.
 
 **1. Pick a concept, then pick a different one.**
-In the Stage AI bar, click **A music streaming app**, then **An online shopping app**. Watch what changes. The first becomes a media player with large artwork, a scrubber and a queue, in purple. The second becomes a catalogue with a promo banner and a product grid, in rose. The composition changes, not just the wording, and the brand colour comes with it.
+Stage opens on the campaign surface. Switch the workspace to **UI/UX Design**, then in the Stage AI bar click **A music streaming app**, followed by **An online shopping app**. Watch what changes. The first becomes a media player with large artwork, a scrubber and a queue, in purple. The second becomes a catalogue with a promo banner and a product grid, in rose. The composition changes, not just the wording, and the brand colour comes with it.
 
 **2. Notice the second surface.**
-The footer of the AI panel now says *Graphic Design updated*. Click it. The same concept is already laid out as a 4:5 social ad, using the same brand name and the same headline logic. One starting point, two surfaces, one brand. This is the part Figma and Canva make you do twice.
+The footer of the AI panel now says *Graphic Design updated*. Click it to go back. The same concept is already laid out as a 4:5 social ad, using the same brand name and the same headline logic. One starting point, two surfaces, one brand. This is the part Figma and Canva make you do twice.
 
 **3. Now finish it by hand, without prompting again.**
 This is the part nothing else does. Select anything on the canvas. Then:

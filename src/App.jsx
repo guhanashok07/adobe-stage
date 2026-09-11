@@ -27,9 +27,10 @@ export default function App() {
   const [history, dispatch] = useReducer(historyReducer, initialHistory);
   const doc = history.present;
 
-  const [workspace, setWorkspace] = useState('UI/UX Design');
+  // Landing on the campaign surface: it is the most striking first frame.
+  const [workspace, setWorkspace] = useState('Graphic Design');
   const [workspaceMenu, setWorkspaceMenu] = useState(false);
-  const [selectedId, setSelectedId] = useState('hero');
+  const [selectedId, setSelectedId] = useState('gdHeadline');
 
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
@@ -474,25 +475,30 @@ export default function App() {
   const ghostSteps = useRef(0);
 
   const runGhostStep = useCallback((act) => {
+    const target = HERO_SELECTION[workspace];
+    const isCampaign = workspace === 'Graphic Design';
+
     if (act === 'select') {
-      setSelectedId('hero');
+      setSelectedId(target);
     } else if (act === 'drag') {
       ghostSteps.current += 1;
       commit((d) => ({
         ...d,
-        positions: { ...d.positions, hero: { x: 26, y: 14 } },
+        positions: { ...d.positions, [target]: { x: 22, y: 12 } },
       }));
     } else if (act === 'type') {
       ghostSteps.current += 1;
       commit((d) => ({
         ...d,
-        content: { ...d.content, statLabel: 'Edited by hand' },
+        content: isCampaign
+          ? { ...d.content, gdHeadline: 'EDITED BY HAND, NOT BY PROMPT.' }
+          : { ...d.content, statLabel: 'Edited by hand' },
       }));
     } else if (act === 'undo') {
       for (let i = 0; i < ghostSteps.current; i += 1) dispatch({ type: 'undo' });
       ghostSteps.current = 0;
     }
-  }, [commit]);
+  }, [commit, workspace]);
 
   const endGhost = useCallback(() => {
     // Roll back anything the demo did but did not get to undo itself.
