@@ -145,6 +145,8 @@ npm run dev
 
 Then open `http://localhost:5173`. `npm run build` produces the static bundle, `npm run lint` checks the source, and `netlify.toml` holds the deploy config so the hosting setup lives in the repo rather than in a dashboard somewhere.
 
+`./scripts/backup.sh` snapshots the whole repository, every branch and tag, into a single `.bundle` file under `~/Backups/git-bundles/`, along with a tarball of anything git is not tracking. Restoring is `git clone <bundle> recovered-repo`. Worth running before anything that rewrites history.
+
 **Stack:** React 19 and Vite, Tailwind with a design token layer sampled from Adobe's own products, Lucide icons, Source Sans 3, deployed on Netlify. The launch deck is a standalone static page in `public/deck.html`, served at [/deck.html](https://adobestageproto.netlify.app/deck.html).
 
 **Structure:**
