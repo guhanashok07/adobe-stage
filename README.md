@@ -3,10 +3,18 @@
 > **Reclaiming the digital canvas.**
 > Browser-native, AI-first, collaborative design for the 400M+ people who make things.
 
-[![Live prototype](https://img.shields.io/badge/Live%20prototype-adobestageproto.netlify.app-1473E6?style=for-the-badge&logo=netlify&logoColor=white)](https://adobestageproto.netlify.app/)
-[![Launch deck](https://img.shields.io/badge/Launch%20deck-Open-EB1000?style=for-the-badge&logo=adobe&logoColor=white)](https://adobestageproto.netlify.app/deck.html)
-[![Course](https://img.shields.io/badge/CMU-Product%20Marketing-C41230?style=for-the-badge)](https://www.cmu.edu/)
-[![React](https://img.shields.io/badge/React%2019-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev/)
+### ▶ [Open the live prototype](https://adobestageproto.netlify.app/)
+### 📊 [Open the launch deck](https://adobestageproto.netlify.app/deck.html)
+
+[![React](https://img.shields.io/badge/React%2019-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vite.dev/)
+[![Tailwind](https://img.shields.io/badge/Tailwind-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Netlify](https://img.shields.io/badge/Deployed%20on-Netlify-00C7B7?style=flat-square&logo=netlify&logoColor=white)](https://adobestageproto.netlify.app/)
+[![CMU](https://img.shields.io/badge/CMU-Product%20Marketing-C41230?style=flat-square)](https://www.cmu.edu/)
+
+No install, no account, no API key. Both links open in the browser.
+
+---
 
 Adobe Stage was built as the final product launch project for the Product Marketing course at Carnegie Mellon. It is a working prototype, not a mockup, and you can open it right now.
 
@@ -27,19 +35,19 @@ Why does this happen? Daniel Kahneman gave us the vocabulary for it years before
 
 Every prompt-only tool forces visual thinkers to work in System 2 forever. Stage hands them back System 1 for the part where it matters.
 
-**Prompt the first 90%. Finish the last 10% by hand.**
+**Generate the first 90%. Finish the last 10% by hand.**
 
 ---
 
 ## Try it in 60 seconds
 
-This is the whole argument, and you can run it yourself on the [live prototype](https://adobestageproto.netlify.app/). No account, no API key, no install. The tool ships with a demo mode that answers a fixed set of prompts from built-in archetypes, which is enough to walk the entire flow.
+This is the whole argument, and you can run it yourself on the [live prototype](https://adobestageproto.netlify.app/). No account, no API key, no install. On first load a ghost cursor runs the whole argument by itself in about nine seconds, silently, and hands control back the moment you touch anything.
 
-**1. Prompt a concept, then prompt a different one.**
-Type `a music streaming app`, then `an online shopping app`. Watch what changes. The first becomes a media player with large artwork, a scrubber and a queue, in purple. The second becomes a catalogue with a promo banner and a product grid, in rose. The composition changes, not just the wording, and the brand colour comes with it.
+**1. Pick a concept, then pick a different one.**
+In the Stage AI bar, click **A music streaming app**, then **An online shopping app**. Watch what changes. The first becomes a media player with large artwork, a scrubber and a queue, in purple. The second becomes a catalogue with a promo banner and a product grid, in rose. The composition changes, not just the wording, and the brand colour comes with it.
 
 **2. Notice the second surface.**
-The footer of the AI panel now says *Graphic Design updated*. Click it. The same concept is already laid out as a 4:5 social ad, using the same brand name and the same headline logic. One prompt, two surfaces, one brand. This is the part Figma and Canva make you do twice.
+The footer of the AI panel now says *Graphic Design updated*. Click it. The same concept is already laid out as a 4:5 social ad, using the same brand name and the same headline logic. One starting point, two surfaces, one brand. This is the part Figma and Canva make you do twice.
 
 **3. Now finish it by hand, without prompting again.**
 This is the part nothing else does. Select anything on the canvas. Then:
@@ -56,7 +64,7 @@ This is the part nothing else does. Select anything on the canvas. Then:
 | Add something | Shape and text tools in the toolbar, then Delete to remove |
 
 **4. Change your mind, freely.**
-`Cmd+Z` walks back through every edit, including a whole drag or resize as one step. `Shift+Cmd+Z` goes forward again. Then drop the **fidelity** slider below 35% and watch the same layout render as a greyscale wireframe. Raise it and the polish comes back.
+`Cmd+Z` walks back through every edit, including a whole drag or resize as one step. `Shift+Cmd+Z` goes forward again. Then open **Parameters** in the Stage AI bar, drop **fidelity** below 35%, and watch the same layout render as a greyscale wireframe. Raise it and the polish comes back.
 
 That is the proof. You never re-prompted to get the last 10%, and you never lost the 90% you already had.
 
@@ -69,12 +77,13 @@ I would rather be honest about a prototype than oversell it, so the app itself m
 **Working today**
 
 - Three app compositions (analytics dashboard, media player, catalogue) and two campaign compositions (type poster, product ad), switchable by hand from the toolbar or chosen for you by the prompt
-- Prompt to design, with real Gemini or OpenAI calls when you supply a key and deterministic archetypes when you do not
+- A dozen one-click starting points that pick the layout, palette, copy and theme, answered by real Gemini or OpenAI calls when you supply a key and by deterministic archetypes when you do not
+- A scripted ghost-cursor walkthrough on first load
 - A generated accent colour that carries through the whole screen
 - Scrubbable numeric values, disclosure groups and keyframe affordances, modelled on Premiere's panels
 - Drag, four-corner resize, arrow-key nudge, delete
 - Inline text editing directly on the artboard
-- X / Y / W / H numeric controls, six-way alignment, fill colour
+- X / Y / W / H scrub controls, six-way alignment, fill colour, opacity, transform reset
 - Undo and redo across every edit
 - Fidelity and creativity parameters that genuinely change the output, not just the UI
 - Light and dark theme tokens
@@ -92,7 +101,9 @@ Stage never sees your key and there is no Stage server to send it to. Paste a Ge
 
 You can also override the model id in that dialog. Leave it blank and Stage uses `gemini-2.5-flash` or `gpt-5.6-luna`. This field exists because it bit me: the prototype originally shipped `gemini-2.0-flash` and `gpt-4o-mini`, both of which have since been retired, and because a failed call quietly falls back to demo mode the symptom was not an error message. It was a prompt bar that appeared to do nothing at all. If generation stops working, check the model id first. The Stage AI footer now shows the provider's actual error in amber, and the status pill tells you which model it is calling.
 
-Without a key the prompt bar still works. It scores your prompt against twelve domains covering banking, crypto, music, fitness, ecommerce, SaaS, travel, food, education, social, real estate, and hiring, and when none of them fit it builds an archetype out of your own words. Ask it for a plant care reminder tool and you get PlantCare, not a placeholder. It is an approximation and it says so, but it is enough to walk the whole demo. Every screenshot in the deck was produced in demo mode.
+Free-form typing is switched off on purpose. A prototype that invites any sentence and then answers most of them badly is worse than one that offers a dozen starting points and handles every single one properly, so the composer is greyed out and the suggestion chips are the whole input surface.
+
+Without a key those starting points still work. Stage scores them against twelve domains covering banking, crypto, music, fitness, ecommerce, SaaS, travel, food, education, social, real estate, and hiring, and when none of them fit it builds an archetype out of your own words. Ask it for a plant care reminder tool and you get PlantCare, not a placeholder. It is an approximation and it says so, but it is enough to walk the whole demo.
 
 ---
 
@@ -134,23 +145,32 @@ npm run dev
 
 Then open `http://localhost:5173`. `npm run build` produces the static bundle, `npm run lint` checks the source, and `netlify.toml` holds the deploy config so the hosting setup lives in the repo rather than in a dashboard somewhere.
 
-**Stack:** React 19 and Vite, Tailwind with a design token layer derived from Adobe Spectrum, Lucide icons, Source Sans 3, deployed on Netlify.
+**Stack:** React 19 and Vite, Tailwind with a design token layer sampled from Adobe's own products, Lucide icons, Source Sans 3, deployed on Netlify. The launch deck is a standalone static page in `public/deck.html`, served at [/deck.html](https://adobestageproto.netlify.app/deck.html).
 
 **Structure:**
 
 ```
 src/
-  App.jsx                  editor shell, gestures, keyboard, orchestration
-  state/document.js        the editable document and its undo/redo reducer
+  App.jsx                      editor shell, gestures, keyboard, orchestration
+  state/document.js            the document, the layout registry, undo/redo
+  services/aiService.js        Gemini and OpenAI calls, plus the demo generator
   components/
-    UIUXArtboard.jsx       the dashboard surface
-    GraphicArtboard.jsx    the campaign surface
-    CanvasElement.jsx      shared selection frame and resize handles
-    AIPanel.jsx            the prompt bar
-    LayersPanel.jsx        layer tree and brand
-    PropertiesPanel.jsx    the properties inspector
-    Onboarding.jsx         the guided walkthrough above
-  services/aiService.js    Gemini and OpenAI calls, with demo fallback
+    AIPanel.jsx                the Stage AI bar and its starting points
+    GhostDemo.jsx              the scripted first-run walkthrough
+    CanvasElement.jsx          selection frame, corner handles, drag targets
+    ScrubValue.jsx             drag-to-change numeric values
+    PropertiesPanel.jsx        the inspector
+    LayersPanel.jsx            the layer tree
+    Onboarding.jsx             the guided intro
+    primitives.jsx             buttons, layer rows, inline editing
+    artboards/
+      AppShell.jsx             app chrome, hosts the three app compositions
+      DashboardLayout.jsx      KPI row, hero metric, activity list, chart
+      PlayerLayout.jsx         artwork, now playing, transport, queue
+      CatalogLayout.jsx        promo banner, product grid, order list
+      CampaignArtboard.jsx     type poster and product ad compositions
+      surfaces.jsx             shared surface treatment for all layouts
+      color.js                 accent tinting and shading
 ```
 
 ---

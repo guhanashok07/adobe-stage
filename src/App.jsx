@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } 
 import {
   MousePointer2, Type, Square, Layout, Image as ImageIcon, Folder,
   ChevronDown, Check, Play, Share2, Menu, PanelRight, Key,
-  Undo2, Redo2, Maximize2,
+  Undo2, Redo2, Maximize2, Presentation,
 } from 'lucide-react';
 
 import Onboarding, { STORAGE_KEY, API_KEY_STORAGE, API_PROVIDER_STORAGE, API_MODEL_STORAGE } from './components/Onboarding';
@@ -36,7 +36,6 @@ export default function App() {
   const [aiOpen, setAiOpen] = useState(true);
   const [focusedPanel, setFocusedPanel] = useState('canvas');
 
-  const [prompt, setPrompt] = useState('');
   const [fidelity, setFidelity] = useState(80);
   const [creativity, setCreativity] = useState(30);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -74,7 +73,7 @@ export default function App() {
     const fit = () => {
       const { width, height } = node.getBoundingClientRect();
       if (!width || !height) return;
-      const next = Math.max(0.25, Number(Math.min(1, (width - 72) / board.w, (height - 72) / board.h).toFixed(3)));
+      const next = Math.max(0.25, Number(Math.min(1, (width - 48) / board.w, (height - 40) / board.h).toFixed(3)));
       scaleRef.current = next;
       setScale(next);
     };
@@ -250,12 +249,13 @@ export default function App() {
     const base = baseOf(id, doc, workspace);
     const g = geometryOf(id, doc, workspace);
 
-    // The UI surface has a 200px app sidebar and a 64px header that content
-    // sits inside; the graphic surface is a plain bleed artboard.
-    const padLeft = board.sidebar + 32;
-    const padTop = board.sidebar ? 96 : 32;
-    const padRight = board.w - 32 - g.w;
-    const padBottom = board.h - 32 - g.h;
+    // Align to the same content box the layouts lay out against, otherwise
+    // aligning an already-flush block shifts it by the difference.
+    const inset = board.pad || 32;
+    const padLeft = board.sidebar + inset;
+    const padTop = board.header + inset;
+    const padRight = board.w - inset - g.w;
+    const padBottom = board.h - inset - g.h;
 
     const targets = {
       left: ['x', padLeft],
@@ -365,8 +365,10 @@ export default function App() {
 
   // --- generation ----------------------------------------------------------
 
+  // Input comes only from the suggestion chips now, so there is no composer
+  // state to fall back to.
   const generate = async (text) => {
-    const input = (typeof text === 'string' ? text : prompt).trim();
+    const input = String(text || '').trim();
     if (!input || isGenerating) return;
 
     setIsGenerating(true);
@@ -419,7 +421,6 @@ export default function App() {
     }
 
     setIsGenerating(false);
-    setPrompt('');
   };
 
   // --- keyboard ------------------------------------------------------------
@@ -434,7 +435,9 @@ export default function App() {
         return;
       }
 
-      if (e.target.closest('input, textarea, [contenteditable="true"]')) return;
+      const target = e.target;
+      if (typeof target?.closest === 'function'
+        && target.closest('input, textarea, [contenteditable="true"]')) return;
 
       if (e.key === 'Escape') { setSelectedId(null); return; }
 
@@ -614,6 +617,17 @@ export default function App() {
             <div className="w-6 h-6 rounded-full bg-emerald-600 ring-2 ring-spectrum-800 grid place-items-center text-[10px] font-semibold text-white">AL</div>
           </div>
 
+          <a
+            href="/deck.html"
+            target="_blank"
+            rel="noreferrer"
+            title="Open the launch deck"
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-[4px] bg-spectrum-600 hover:bg-spectrum-500 border border-spectrum-400 text-[12px] font-medium text-spectrum-50 transition-colors"
+          >
+            <Presentation size={12} className="text-spectrum-100" />
+            Deck
+          </a>
+
           <button
             onClick={() => setShowOnboarding(true)}
             className="flex items-center gap-1.5 h-8 px-2.5 rounded-[4px] bg-spectrum-600 hover:bg-spectrum-500 border border-spectrum-400 text-[12px] font-medium text-spectrum-50 transition-colors"
@@ -729,8 +743,6 @@ export default function App() {
               open={aiOpen}
               onOpen={() => setAiOpen(true)}
               onClose={() => setAiOpen(false)}
-              prompt={prompt}
-              setPrompt={setPrompt}
               onGenerate={generate}
               isGenerating={isGenerating}
               fidelity={fidelity}

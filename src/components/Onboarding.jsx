@@ -15,8 +15,8 @@ export const API_MODEL_STORAGE = 'adobe-stage-api-model';
 const WALKTHROUGH = [
   {
     n: 1,
-    title: 'Prompt a concept',
-    body: 'Try "a music streaming app", then "an online shopping app". The composition changes, not just the words: one becomes a media player, the other a catalogue, each with its own brand colour.',
+    title: 'Pick a concept',
+    body: 'Pick "A music streaming app" from the Stage AI bar, then "An online shopping app". The composition changes, not just the words: one becomes a media player, the other a catalogue, each with its own brand colour.',
     icon: <Sparkles size={14} />,
   },
   {
@@ -42,7 +42,7 @@ const WALKTHROUGH = [
 const CAPABILITIES = {
   live: [
     'Three app compositions and two campaign compositions',
-    'Prompt picks the layout, the palette and the copy',
+    'A starting point picks the layout, palette and copy',
     'Drag, corner-resize, and arrow-key nudge',
     'Inline text editing on the artboard',
     'X / Y / W / H, alignment, and fill controls',
@@ -96,9 +96,10 @@ export default function Onboarding({ onComplete, hasKey }) {
             and a re-roll that loses the two things you liked.
           </p>
           <p className="text-[13px] leading-relaxed text-spectrum-100">
-            Stage splits the job. <span className="text-spectrum-50 font-semibold">Prompt the first 90%</span> in plain
-            English, then <span className="text-spectrum-50 font-semibold">finish the last 10% by hand</span>: drag,
-            resize, retype, recolour, on a browser-native canvas.
+            Stage splits the job. <span className="text-spectrum-50 font-semibold">Generate the first 90%</span> from a
+            plain-English brief, then <span className="text-spectrum-50 font-semibold">finish the last 10% by hand</span>:
+            drag, resize, retype, recolour, on a browser-native canvas. This prototype ships a fixed set of briefs rather
+            than an open text box, so every one of them lands properly.
           </p>
 
           <div className="grid grid-cols-2 gap-2.5 pt-1">
@@ -162,8 +163,9 @@ export default function Onboarding({ onComplete, hasKey }) {
       body: (
         <div className="space-y-4">
           <p className="text-[13px] leading-relaxed text-spectrum-100">
-            Paste your own key for real generated responses to any prompt. Without one, Stage runs in demo
-            mode and answers a fixed set of prompts from built-in archetypes, which is enough to walk the whole demo above.
+            Optional. The starting points in the Stage AI bar work either way. With a key they are answered by a
+            real model, and without one they are answered from built-in archetypes. Free-form typing is switched
+            off in this prototype, so the difference is in the wording, not in what you can reach.
           </p>
 
           <div className="grid grid-cols-2 gap-2">
