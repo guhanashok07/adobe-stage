@@ -1,3 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700;900&family=Source+Code+Pro:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: #161616;
+  }
+}
+
+@layer utilities {
+  /* Used by the AI panel's suggestion chip rail. */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Numeric fields in the properties panel line up column-wise. */
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* --- Spectrum-style scrollbars ------------------------------------------ */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #4A4A4A;
+  border-radius: 5px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: #707070; background-clip: content-box; }
+
+/* --- Spectrum-style range sliders --------------------------------------- */
+input[type="range"].spectrum-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 14px;
+}
+input[type="range"].spectrum-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 1px;
+  background: #4A4A4A;
+}
+input[type="range"].spectrum-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #EAEAEA;
+  border: 2px solid #1473E6;
+  cursor: grab;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+input[type="range"].spectrum-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 4px rgba(20, 115, 230, 0.2);
+}
+input[type="range"].spectrum-slider:active::-webkit-slider-thumb { cursor: grabbing; }
+input[type="range"].spectrum-slider::-moz-range-track {
+  height: 2px; border-radius: 1px; background: #4A4A4A;
+}
+input[type="range"].spectrum-slider::-moz-range-thumb {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #EAEAEA; border: 2px solid #1473E6; cursor: grab;
+}
+
+/* --- Canvas text editing ------------------------------------------------ */
+/* Inline-editable canvas text gets a soft accent wash on focus so it is
+   obvious the artboard itself is editable, not just the side panels. */
+[contenteditable="true"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 1.5px rgba(20, 115, 230, 0.9);
+  border-radius: 2px;
+}
+
+/* Headlines must never break mid-word — the graphic-design surface scales
+   type down instead (see fitHeadline in App.jsx). */
+.headline-fit {
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+::selection { background: rgba(20, 115, 230, 0.35); }
+
+@keyframes loading {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}

@@ -1,5 +1,18 @@
 // AI Service - Calls Gemini or OpenAI to interpret design prompts
 // Falls back to deterministic demo responses when no API key is provided
+//
+// Model ids go stale fast. This prototype originally shipped
+// gemini-2.0-flash and gpt-4o-mini; both were retired, and because a failed
+// call falls back to demo mode, the symptom was "the prompt bar does
+// nothing" rather than a visible error. The ids below are overridable from
+// the Guide & key dialog so a retirement is a settings change, not a commit.
+//   https://ai.google.dev/gemini-api/docs/models
+//   https://developers.openai.com/api/docs/models
+
+export const DEFAULT_MODELS = {
+  gemini: 'gemini-2.5-flash',
+  openai: 'gpt-5.6-luna',
+};
 
 const SYSTEM_PROMPT = `You are an AI design assistant inside "Adobe Stage", an AI-first design tool prototype.
 The user is looking at a canvas. When they give a prompt, you decide what visual changes to make to create or adapt the prototype.
@@ -8,15 +21,23 @@ You MUST respond with ONLY a valid JSON object (no markdown formatting, no code 
 
 {
   "theme": "light" | "dark" | null,
+  "layout": "dashboard" | "player" | "catalog",
+  "gdLayout": "poster" | "productAd",
+  "accentHex": "Six-digit hex WITHOUT the #, chosen for the domain (e.g. 1473E6 finance, 7C3AED music, 059669 health, E11D48 food)",
   "ctaStyle": "blue" | "black" | null,
   "gdStyle": "modern" | "cyberpunk" | null,
   "prototype": {
     "appName": "Short brand name (e.g. AcmeBank, SoundWave, FitTrack, OrbitCrypto)",
+    "navItems": ["4 sidebar nav labels for THIS domain, one or two words each (e.g. Dashboard, Orders, Products, Customers)"],
+    "searchPlaceholder": "Placeholder for the top search field, matching the domain (e.g. Search orders...)",
     "greeting": "Personalized headline (e.g. Welcome back, Alex or Today's Market Pulse)",
     "statLabel": "Key metric label (e.g. Total Balance, Listening Time, Calories Burned)",
     "statValue": "Key metric value (e.g. $24,500.00, 14.8 hrs, 2,340 kcal)",
+    "statDelta": "Short change note (e.g. +12.4% vs last month). Omit for media domains.",
     "ctaLabel": "Action button text (e.g. Transfer, Play Now, Log Workout, Swap)",
     "activityTitle": "Section title (e.g. Recent Activity, Top Tracks, Workout Log)",
+    "stats": [ { "label": "Short KPI label", "value": "Short value" } ],
+    "chart": { "title": "Chart title with a time frame", "series": [7 numbers between 5 and 100] },
     "items": [
       { "title": "Item 1 title", "sub": "Item 1 subtitle/date", "amount": "+/- metric or status" },
       { "title": "Item 2 title", "sub": "Item 2 subtitle/date", "amount": "+/- metric or status" }
@@ -30,32 +51,52 @@ You MUST respond with ONLY a valid JSON object (no markdown formatting, no code 
 
 Rules:
 - Adapt the prototype fields to whatever domain the user asked for (fintech, music, crypto, ecommerce, health, social, etc.).
+- navItems and searchPlaceholder MUST match the domain. A shopping app does not have a "Transfers" tab and does not "Search transactions". Getting this wrong makes the result look like a banking template with the words swapped.
 - Set "theme" to "dark" or "light" if the domain or prompt calls for it.
 - Set "gdStyle" to "cyberpunk" for tech/cyber/futuristic prompts, or "modern" otherwise.
-- Keep text concise and realistic.`;
+- CHOOSE THE LAYOUT, this matters more than the wording. "player" for anything media, audio, video or playback led. "catalog" for shopping, marketplaces, listings and anything browsed as a grid of things. "dashboard" for metrics, admin, finance, analytics and operations. Pick "productAd" over "poster" when there is a physical or purchasable product to show.
+- On the "player" layout, statLabel is the track or episode title and statValue is the artist or show. On "catalog", statLabel is the promo headline, statValue is the supporting line, and each entry in "stats" is a product where label is its name and value is its price.
+- accentHex carries most of the visual identity. Never return the default blue for a domain that has its own colour.
+- Keep text concise and realistic.
+- "items" should hold 2 to 4 rows. "stats" should hold 0 to 3 KPI tiles. Vary these between domains: a dashboard that always has exactly two rows and three tiles looks templated.
+- Set "chart" to null when a chart would not belong on this screen, otherwise give it a real title and 7 plausible values. The series is a shape, not exact data.`;
 
-export async function generateWithAI(prompt, { apiKey, provider, workspace, selectedElement }) {
+export async function generateWithAI(prompt, options = {}) {
+  const { apiKey, provider } = options;
+
   if (!apiKey) {
-    return fallbackGenerate(prompt, workspace);
+    return fallbackGenerate(prompt);
   }
 
   try {
-    if (provider === 'gemini') {
-      return await callGemini(prompt, apiKey, workspace, selectedElement);
-    } else {
-      return await callOpenAI(prompt, apiKey, workspace, selectedElement);
-    }
+    return provider === 'gemini'
+      ? await callGemini(prompt, apiKey, options)
+      : await callOpenAI(prompt, apiKey, options);
   } catch (err) {
     console.error('AI API error, falling back to demo mode:', err);
     return {
-      ...fallbackGenerate(prompt, workspace),
-      message: `API error: ${err.message}. Used demo fallback instead.`
+      ...fallbackGenerate(prompt),
+      error: true,
+      message: `${err.message}. Showed a demo result instead.`
     };
   }
 }
 
-async function callGemini(prompt, apiKey, workspace, selectedElement) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+// The context block is identical for both providers.
+function buildContext(prompt, { workspace, selectedElement, fidelity = 80, creativity = 30 }) {
+  return [
+    `Current workspace: ${workspace}`,
+    `Selected element: ${selectedElement}`,
+    `Fidelity: ${fidelity}/100 (low = wireframe, plain language, muted; high = polished, specific, production-ready copy)`,
+    `Creativity: ${creativity}/100 (low = stay literal and on-brand; high = take an unexpected angle)`,
+    '',
+    `User prompt: "${prompt}"`
+  ].join('\n');
+}
+
+async function callGemini(prompt, apiKey, options) {
+  const model = options.model?.trim() || DEFAULT_MODELS.gemini;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -63,12 +104,12 @@ async function callGemini(prompt, apiKey, workspace, selectedElement) {
     body: JSON.stringify({
       contents: [{
         parts: [{
-          text: `${SYSTEM_PROMPT}\n\nCurrent workspace: ${workspace}\nSelected element: ${selectedElement}\n\nUser prompt: "${prompt}"`
+          text: `${SYSTEM_PROMPT}\n\n${buildContext(prompt, options)}`
         }]
       }],
       generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 256,
+        temperature: Math.min(1, (options.creativity ?? 30) / 100 + 0.15),
+        maxOutputTokens: 1024,
         responseMimeType: "application/json"
       }
     })
@@ -86,7 +127,7 @@ async function callGemini(prompt, apiKey, workspace, selectedElement) {
   return parseAIResponse(text);
 }
 
-async function callOpenAI(prompt, apiKey, workspace, selectedElement) {
+async function callOpenAI(prompt, apiKey, options) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -94,13 +135,13 @@ async function callOpenAI(prompt, apiKey, workspace, selectedElement) {
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: options.model?.trim() || DEFAULT_MODELS.openai,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Current workspace: ${workspace}\nSelected element: ${selectedElement}\n\nUser prompt: "${prompt}"` }
+        { role: 'user', content: buildContext(prompt, options) }
       ],
-      temperature: 0.3,
-      max_tokens: 256,
+      temperature: Math.min(1, (options.creativity ?? 30) / 100 + 0.15),
+      max_completion_tokens: 1024,
       response_format: { type: 'json_object' }
     })
   });
@@ -122,7 +163,35 @@ function parseAIResponse(text) {
   const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
   const parsed = JSON.parse(cleaned);
 
+  if (parsed.prototype) {
+    const proto = parsed.prototype;
+
+    const nav = proto.navItems;
+    proto.navItems = Array.isArray(nav) && nav.length ? nav.slice(0, 4).map(String) : undefined;
+
+    proto.stats = Array.isArray(proto.stats)
+      ? proto.stats
+          .filter((s) => s && (s.label || s.value))
+          .slice(0, 3)
+          .map((s) => ({ label: String(s.label ?? ''), value: String(s.value ?? '') }))
+      : undefined;
+
+    // A chart needs a usable series; anything else is dropped rather than
+    // rendered as an empty box.
+    const series = proto.chart?.series;
+    proto.chart = Array.isArray(series) && series.length >= 3
+      ? {
+          title: String(proto.chart.title || 'Trend'),
+          series: series.slice(0, 12).map((n) => Math.max(4, Math.min(100, Number(n) || 0))),
+        }
+      : null;
+
+    if (Array.isArray(proto.items)) proto.items = proto.items.slice(0, 4);
+  }
+
   return {
+    layout: parsed.layout || null,
+    gdLayout: parsed.gdLayout || null,
     theme: parsed.theme || null,
     ctaStyle: parsed.ctaStyle || null,
     gdStyle: parsed.gdStyle || null,
@@ -132,139 +201,470 @@ function parseAIResponse(text) {
   };
 }
 
-function fallbackGenerate(prompt, workspace) {
-  const lower = prompt.toLowerCase();
-  const result = {
-    theme: null,
-    ctaStyle: null,
-    gdStyle: null,
-    prototype: null,
-    addElements: [],
-    message: ''
-  };
 
-  // 1. Theme controls
-  if (lower.includes('dark mode') || lower.includes('dark theme')) {
-    result.theme = 'dark';
-    result.message = 'Switched to dark mode.';
-  } else if (lower.includes('light mode') || lower.includes('light theme')) {
-    result.theme = 'light';
-    result.message = 'Switched to light mode.';
-  }
+// --- demo mode -----------------------------------------------------------
+//
+// Without an API key Stage still has to answer any prompt convincingly, so
+// this is a small deterministic generator rather than a lookup table. It
+// scores the prompt against a domain taxonomy, and when nothing matches it
+// builds an archetype out of the user's own words instead of falling back to
+// placeholder copy like "StageApp / Key Metric Output".
 
-  // 2. Button styles
-  if (lower.includes('black') || lower.includes('transfer button') || lower.includes('cta')) {
-    result.ctaStyle = 'black';
-    result.message = (result.message ? result.message + ' ' : '') + 'Button styled with contrast black.';
-  }
-
-  // 3. Graphic design styles
-  if (lower.includes('cyberpunk') || lower.includes('neon') || lower.includes('matrix')) {
-    result.gdStyle = 'cyberpunk';
-    result.message = (result.message ? result.message + ' ' : '') + 'Applied cyberpunk neon aesthetic.';
-  }
-
-  // 4. Prototype archetypes for random prompts
-  if (lower.includes('crypto') || lower.includes('bitcoin') || lower.includes('web3') || lower.includes('wallet')) {
-    result.theme = 'dark';
-    result.prototype = {
-      appName: 'OrbitCrypto',
+const DOMAINS = [
+  {
+    id: 'crypto',
+    keywords: ['crypto', 'bitcoin', 'btc', 'ethereum', 'web3', 'wallet', 'defi', 'token', 'blockchain', 'nft'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '7C5CFF',
+    theme: 'dark', gdStyle: 'cyberpunk',
+    data: {
+      appName: 'OrbitCrypto', 
+      navItems: ['Portfolio', 'Markets', 'Swap', 'Activity'],
+      searchPlaceholder: 'Search assets…',
       greeting: 'Portfolio Overview',
-      statLabel: 'Net Crypto Assets',
-      statValue: '₿ 4.8250 BTC',
-      ctaLabel: 'Swap Tokens',
-      activityTitle: 'Live Orders',
+      statLabel: 'Net Crypto Assets', statValue: '₿ 4.8250 BTC',
+      ctaLabel: 'Swap Tokens', activityTitle: 'Live Orders',
       items: [
         { title: 'Ethereum (ETH)', sub: 'Staked via Lido', amount: '+3.4% 24h' },
-        { title: 'Solana (SOL)', sub: 'Limit Order Executed', amount: '+$1,450.00' }
+        { title: 'Solana (SOL)', sub: 'Limit order executed', amount: '+$1,450.00' },
       ],
-      gdBrand: 'ORBIT',
-      gdHeadline: 'DECENTRALIZED LIQUIDITY AT SCALE.'
-    };
-    result.message = 'Generated OrbitCrypto decentralized asset dashboard.';
-  } else if (lower.includes('music') || lower.includes('spotify') || lower.includes('sound') || lower.includes('song')) {
-    result.theme = 'dark';
-    result.prototype = {
-      appName: 'SoundStage',
+      stats: [{ label: '24h Volume', value: '$1.2M' }, { label: 'Staked', value: '62%' }, { label: 'Positions', value: '14' }],
+      chart: { title: 'Portfolio Value, 7 Days', series: [48, 62, 44, 78, 71, 95, 83] },
+      gdBrand: 'ORBIT', gdHeadline: 'DECENTRALIZED LIQUIDITY AT SCALE.',
+    },
+  },
+  {
+    id: 'music',
+    keywords: ['music', 'spotify', 'song', 'audio', 'podcast', 'streaming', 'playlist', 'radio', 'album'],
+    layout: 'player', gdLayout: 'poster', accentHex: '8B5CF6',
+    theme: 'dark', gdStyle: 'modern',
+    data: {
+      appName: 'SoundStage', 
+      navItems: ['Home', 'Library', 'Discover', 'Radio'],
+      searchPlaceholder: 'Search songs, artists…',
       greeting: 'Now Streaming',
-      statLabel: 'Total Listening Time',
-      statValue: '28.4 hrs this week',
-      ctaLabel: 'Play Mix',
-      activityTitle: 'Heavy Rotation',
+      statLabel: 'Listening This Week', statValue: '28.4 hrs',
+      ctaLabel: 'Play Mix', activityTitle: 'Heavy Rotation',
       items: [
-        { title: 'Midnight City (Remix)', sub: 'M83 • Electronic', amount: '▶ 1.2M' },
-        { title: 'Starry Night', sub: 'Peggy Gou • House', amount: '▶ 850k' }
+        { title: 'Midnight City (Remix)', sub: 'M83 · Electronic', amount: '1.2M plays' },
+        { title: 'Starry Night', sub: 'Peggy Gou · House', amount: '850k plays' },
       ],
-      gdBrand: 'SOUND',
-      gdHeadline: 'HEAR THE NEXT WAVE IN HI-FI.'
-    };
-    result.message = 'Generated SoundStage audio streaming prototype.';
-  } else if (lower.includes('fitness') || lower.includes('gym') || lower.includes('workout') || lower.includes('health')) {
-    result.prototype = {
-      appName: 'PulseFit',
+      stats: [{ label: 'Tracks', value: '1,204' }, { label: 'Artists', value: '318' }],
+      chart: { title: 'Listening Hours, This Week', series: [22, 41, 35, 58, 47, 88, 64] },
+      gdBrand: 'SOUND', gdHeadline: 'HEAR THE NEXT WAVE.',
+    },
+  },
+  {
+    id: 'fitness',
+    keywords: ['fitness', 'gym', 'workout', 'health', 'running', 'training', 'exercise', 'yoga', 'wellness', 'steps'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '059669',
+    theme: 'light', gdStyle: 'modern',
+    data: {
+      appName: 'PulseFit', 
+      navItems: ['Today', 'Workouts', 'Progress', 'Plans'],
+      searchPlaceholder: 'Search exercises…',
       greeting: 'Morning Session, Alex',
-      statLabel: 'Active Calories',
-      statValue: '1,840 kcal',
-      ctaLabel: 'Start Workout',
-      activityTitle: 'Today’s Milestones',
+      statLabel: 'Active Calories', statValue: '1,840 kcal',
+      ctaLabel: 'Start Workout', activityTitle: "Today's Milestones",
       items: [
-        { title: '5km Interval Run', sub: 'Pace: 4:45/km • Outdoors', amount: '320 kcal' },
-        { title: 'Upper Body Hypertrophy', sub: 'Completed 5/5 sets', amount: '45 mins' }
+        { title: '5km Interval Run', sub: 'Pace 4:45/km · Outdoors', amount: '320 kcal' },
+        { title: 'Upper Body Strength', sub: 'Completed 5 of 5 sets', amount: '45 mins' },
       ],
-      gdBrand: 'PULSE',
-      gdHeadline: 'PEAK HUMAN PERFORMANCE.'
-    };
-    result.message = 'Generated PulseFit health & metrics tracking prototype.';
-  } else if (lower.includes('ecommerce') || lower.includes('store') || lower.includes('shop') || lower.includes('cart')) {
-    result.prototype = {
-      appName: 'AuraMarket',
+      stats: [{ label: 'Steps', value: '12,480' }, { label: 'Streak', value: '9 days' }, { label: 'Resting HR', value: '54 bpm' }],
+      chart: { title: 'Active Minutes, Last 7 Days', series: [35, 52, 28, 64, 71, 45, 88] },
+      gdBrand: 'PULSE', gdHeadline: 'PEAK HUMAN PERFORMANCE.',
+    },
+  },
+  {
+    id: 'commerce',
+    keywords: ['ecommerce', 'commerce', 'store', 'shop', 'shopping', 'cart', 'retail', 'marketplace', 'seller', 'merchant', 'order'],
+    layout: 'catalog', gdLayout: 'productAd', accentHex: 'E11D48',
+    theme: 'light', gdStyle: 'modern',
+    data: {
+      appName: 'AuraMarket', 
+      navItems: ['Dashboard', 'Orders', 'Products', 'Customers'],
+      searchPlaceholder: 'Search orders…',
       greeting: 'Store Revenue Today',
-      statLabel: 'Gross Merchandise Val',
-      statValue: '$18,920.50',
-      ctaLabel: 'View Orders',
-      activityTitle: 'Recent Orders',
+      statLabel: 'Gross Merchandise Value', statValue: '$18,920.50',
+      ctaLabel: 'View Orders', activityTitle: 'Recent Orders',
       items: [
-        { title: 'Minimalist Wool Coat (M)', sub: 'Express Shipping • Tokyo', amount: '+$380' },
-        { title: 'Mechanical Keyboard v2', sub: 'Order #4892 • Paid', amount: '+$210' }
+        { title: 'Minimalist Wool Coat', sub: 'Express shipping · Tokyo', amount: '+$380' },
+        { title: 'Mechanical Keyboard v2', sub: 'Order #4892 · Paid', amount: '+$210' },
       ],
-      gdBrand: 'AURA',
-      gdHeadline: 'CURATED LUXURY COMMERCE.'
-    };
-    result.message = 'Generated AuraMarket merchant dashboard prototype.';
-  } else if (lower.includes('saas') || lower.includes('analytics') || lower.includes('cloud') || lower.includes('metrics')) {
-    result.prototype = {
-      appName: 'CloudMetrics',
-      greeting: 'Production Cluster #04',
-      statLabel: 'Monthly Recurring Rev',
-      statValue: '$84,120 ARR',
-      ctaLabel: 'Deploy v2.4',
-      activityTitle: 'Recent Deployments',
+      stats: [{ label: 'Orders', value: '312' }, { label: 'Avg Basket', value: '$61' }, { label: 'Refunds', value: '1.4%' }],
+      chart: { title: 'Revenue, Last 7 Days', series: [44, 61, 52, 78, 66, 91, 74] },
+      gdBrand: 'AURA', gdHeadline: 'CURATED LUXURY COMMERCE.',
+    },
+  },
+  {
+    id: 'saas',
+    keywords: ['saas', 'analytics', 'cloud', 'metrics', 'devops', 'infrastructure', 'api', 'monitoring', 'platform', 'b2b'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '0EA5E9',
+    theme: 'dark', gdStyle: 'modern',
+    data: {
+      appName: 'CloudMetrics', 
+      navItems: ['Overview', 'Services', 'Deploys', 'Alerts'],
+      searchPlaceholder: 'Search services…',
+      greeting: 'Production Cluster 04',
+      statLabel: 'Monthly Recurring Revenue', statValue: '$84,120',
+      ctaLabel: 'Deploy v2.4', activityTitle: 'Recent Deployments',
       items: [
-        { title: 'Auth-Service API', sub: 'Lat: 18ms • 99.99% uptime', amount: 'Passed' },
-        { title: 'Vector Ingestion Pipeline', sub: 'Processed 2.4M chunks', amount: 'Healthy' }
+        { title: 'Auth Service API', sub: '18ms latency · 99.99% uptime', amount: 'Passed' },
+        { title: 'Ingestion Pipeline', sub: 'Processed 2.4M records', amount: 'Healthy' },
       ],
-      gdBrand: 'METRICS',
-      gdHeadline: 'OBSERVABILITY FOR SCALE.'
-    };
-    result.message = 'Generated CloudMetrics infrastructure prototype.';
-  } else if (!result.message) {
-    // Generic fallback archetype for any other prompt
-    result.prototype = {
-      appName: 'StageApp',
-      greeting: 'Prototype Preview',
-      statLabel: 'Key Metric Output',
-      statValue: '99.4% Complete',
-      ctaLabel: 'Proceed',
-      activityTitle: 'System Events',
+      stats: [{ label: 'Uptime', value: '99.99%' }, { label: 'p95', value: '142ms' }, { label: 'Errors', value: '0.02%' }],
+      chart: { title: 'Requests per Minute', series: [58, 64, 49, 72, 81, 68, 77] },
+      gdBrand: 'METRICS', gdHeadline: 'OBSERVABILITY THAT SCALES.',
+    },
+  },
+  {
+    id: 'banking',
+    keywords: ['bank', 'banking', 'fintech', 'finance', 'payment', 'invoice', 'budget', 'savings', 'lending', 'card'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '1473E6',
+    theme: 'light', gdStyle: 'modern',
+    data: {
+      appName: 'AcmeBank', 
+      navItems: ['Dashboard', 'Cards', 'Transfers', 'Analytics'],
+      searchPlaceholder: 'Search transactions…',
+      greeting: 'Welcome back, Alex',
+      statLabel: 'Total Balance', statValue: '$24,500.00',
+      ctaLabel: 'Transfer', activityTitle: 'Recent Activity',
       items: [
-        { title: 'Generated from user prompt', sub: `Input: "${prompt.slice(0, 24)}"`, amount: 'Live' },
-        { title: 'Direct manipulation ready', sub: 'Click, drag, resize, or inspect', amount: 'Ready' }
+        { title: 'Apple Store', sub: 'Today, 2:45 PM', amount: '-$999' },
+        { title: 'Upwork Inc.', sub: 'Yesterday', amount: '+$2,400' },
       ],
-      gdBrand: 'STAGE',
-      gdHeadline: prompt.length > 3 ? prompt.toUpperCase().slice(0, 32) : 'CREATIVE INTELLIGENCE UNLEASHED.'
-    };
-    result.message = `Generated custom prototype for "${prompt.slice(0, 30)}".`;
+      stats: [{ label: 'Income', value: '$8,240' }, { label: 'Spending', value: '$3,110' }, { label: 'Saved', value: '38%' }],
+      chart: { title: 'Cash Flow, Last 7 Days', series: [42, 58, 35, 71, 64, 88, 52] },
+      gdBrand: 'ACME', gdHeadline: 'THE FUTURE OF DIGITAL BANKING.',
+    },
+  },
+  {
+    id: 'travel',
+    keywords: ['travel', 'flight', 'hotel', 'trip', 'booking', 'airline', 'holiday', 'vacation', 'itinerary', 'tourism'],
+    layout: 'catalog', gdLayout: 'productAd', accentHex: 'F97316',
+    theme: 'light', gdStyle: 'modern',
+    data: {
+      appName: 'Wayfare', 
+      navItems: ['Trips', 'Explore', 'Bookings', 'Saved'],
+      searchPlaceholder: 'Search destinations…',
+      greeting: 'Your Next Trip',
+      statLabel: 'Trip Budget Remaining', statValue: '$1,240.00',
+      ctaLabel: 'Book Flight', activityTitle: 'Upcoming Itinerary',
+      items: [
+        { title: 'Lisbon → Reykjavík', sub: 'TAP 1042 · Seat 14A', amount: '12 Mar' },
+        { title: 'Sandhotel, Reykjavík', sub: '3 nights · Breakfast', amount: '+$412' },
+      ],
+      stats: [{ label: 'Trips', value: '4 booked' }, { label: 'Miles', value: '18,420' }],
+      chart: { title: 'Spend by Trip', series: [30, 72, 45, 61, 88, 39, 54] },
+      gdBrand: 'WAYFARE', gdHeadline: 'GO SOMEWHERE THAT CHANGES YOU.',
+    },
+  },
+  {
+    id: 'food',
+    keywords: ['food', 'restaurant', 'delivery', 'recipe', 'meal', 'kitchen', 'grocery', 'cafe', 'menu', 'dining'],
+    layout: 'catalog', gdLayout: 'productAd', accentHex: 'DC2626',
+    theme: 'light', gdStyle: 'modern',
+    data: {
+      appName: 'Fork&Field', 
+      navItems: ['Kitchen', 'Orders', 'Menu', 'Reservations'],
+      searchPlaceholder: 'Search dishes…',
+      greeting: 'Kitchen Dashboard',
+      statLabel: 'Orders Today', statValue: '312 covers',
+      ctaLabel: 'Start Order', activityTitle: 'Live Tickets',
+      items: [
+        { title: 'Table 12 · Tasting Menu', sub: 'Fired 4 min ago', amount: 'On pass' },
+        { title: 'Delivery · Ramen x2', sub: 'Courier assigned', amount: '+$38' },
+      ],
+      stats: [{ label: 'Avg Ticket', value: '$48' }, { label: 'Wait', value: '11 min' }, { label: 'Covers', value: '312' }],
+      chart: { title: 'Covers by Service, This Week', series: [40, 55, 62, 71, 94, 88, 47] },
+      gdBrand: 'FORK', gdHeadline: 'EAT LIKE YOU MEAN IT.',
+    },
+  },
+  {
+    id: 'education',
+    keywords: ['education', 'learning', 'course', 'student', 'school', 'university', 'teaching', 'study', 'tutor', 'lesson'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '4F46E5',
+    theme: 'light', gdStyle: 'modern',
+    data: {
+      appName: 'Lumen', 
+      navItems: ['Dashboard', 'Courses', 'Assignments', 'Grades'],
+      searchPlaceholder: 'Search courses…',
+      greeting: 'Welcome back, Priya',
+      statLabel: 'Course Progress', statValue: '68% complete',
+      ctaLabel: 'Resume Lesson', activityTitle: 'This Week',
+      items: [
+        { title: 'Statistics · Module 4', sub: 'Due Friday', amount: '2 hrs left' },
+        { title: 'Peer Review Submitted', sub: 'Design Thinking', amount: 'Graded' },
+      ],
+      stats: [{ label: 'Modules', value: '12 of 18' }, { label: 'Avg Grade', value: 'A-' }],
+      chart: { title: 'Study Hours, Last 7 Days', series: [25, 48, 31, 66, 52, 40, 73] },
+      gdBrand: 'LUMEN', gdHeadline: 'LEARN THE THING THAT COMPOUNDS.',
+    },
+  },
+  {
+    id: 'social',
+    keywords: ['social', 'community', 'chat', 'messaging', 'feed', 'network', 'forum', 'creator', 'follower'],
+    layout: 'player', gdLayout: 'poster', accentHex: 'EC4899',
+    theme: 'dark', gdStyle: 'modern',
+    data: {
+      appName: 'Commons', 
+      navItems: ['Feed', 'Messages', 'Groups', 'Profile'],
+      searchPlaceholder: 'Search people…',
+      greeting: 'Your Circle Today',
+      statLabel: 'Reach This Week', statValue: '48.2k people',
+      ctaLabel: 'New Post', activityTitle: 'Recent Activity',
+      items: [
+        { title: 'Ravi replied to your thread', sub: '18 min ago', amount: '24 likes' },
+        { title: 'Design Weekly · New drop', sub: 'From a group you follow', amount: 'Unread' },
+      ],
+      stats: [{ label: 'Followers', value: '12.4k' }, { label: 'Engagement', value: '6.8%' }, { label: 'Posts', value: '48' }],
+      chart: { title: 'Reach, Last 7 Days', series: [52, 38, 64, 71, 59, 86, 92] },
+      gdBrand: 'COMMONS', gdHeadline: 'BUILT BY THE PEOPLE IN IT.',
+    },
+  },
+  {
+    id: 'realestate',
+    keywords: ['real estate', 'property', 'rent', 'rental', 'housing', 'apartment', 'mortgage', 'landlord', 'listing'],
+    layout: 'dashboard', gdLayout: 'productAd', accentHex: '0F766E',
+    theme: 'light', gdStyle: 'modern',
+    data: {
+      appName: 'Keystone', 
+      navItems: ['Portfolio', 'Listings', 'Tenants', 'Maintenance'],
+      searchPlaceholder: 'Search properties…',
+      greeting: 'Portfolio Overview',
+      statLabel: 'Monthly Rent Roll', statValue: '$42,800',
+      ctaLabel: 'Add Listing', activityTitle: 'Recent Activity',
+      items: [
+        { title: '14 Alder Street, Unit 3B', sub: 'Lease signed · 12 months', amount: '+$2,150' },
+        { title: 'Maintenance · Boiler', sub: 'Contractor scheduled', amount: '-$480' },
+      ],
+      stats: [{ label: 'Occupancy', value: '94%' }, { label: 'Units', value: '38' }, { label: 'Arrears', value: '$2,100' }],
+      chart: { title: 'Rent Collected, Last 6 Months', series: [78, 82, 74, 88, 91, 86, 90] },
+      gdBrand: 'KEYSTONE', gdHeadline: 'EVERY DOOR, ACCOUNTED FOR.',
+    },
+  },
+  {
+    id: 'jobs',
+    keywords: ['job', 'jobs', 'hiring', 'recruiting', 'recruitment', 'career', 'applicant', 'candidate', 'resume', 'ats'],
+    layout: 'dashboard', gdLayout: 'poster', accentHex: '2563EB',
+    theme: 'light', gdStyle: 'modern',
+    data: {
+      appName: 'Shortlist', 
+      navItems: ['Pipeline', 'Roles', 'Candidates', 'Interviews'],
+      searchPlaceholder: 'Search candidates…',
+      greeting: 'Pipeline Overview',
+      statLabel: 'Active Candidates', statValue: '148 in pipeline',
+      ctaLabel: 'Post a Role', activityTitle: 'Needs Your Review',
+      items: [
+        { title: 'Senior PM · Final round', sub: 'Panel feedback complete', amount: 'Decide' },
+        { title: 'Design Intern · Screen', sub: '12 new applications', amount: 'New' },
+      ],
+      stats: [{ label: 'Open Roles', value: '11' }, { label: 'Time to Hire', value: '24 days' }, { label: 'Offer Rate', value: '68%' }],
+      chart: { title: 'Applications, Last 7 Days', series: [34, 58, 47, 72, 64, 51, 80] },
+      gdBrand: 'SHORTLIST', gdHeadline: 'HIRE THE ONE, NOT THE HUNDRED.',
+    },
+  },
+];
+
+const STOP_WORDS = new Set([
+  'a', 'an', 'the', 'for', 'with', 'of', 'and', 'to', 'in', 'on', 'my', 'me', 'that', 'this',
+  'app', 'application', 'dashboard', 'page', 'screen', 'design', 'designs', 'ui', 'ux', 'site',
+  'website', 'make', 'create', 'build', 'generate', 'show', 'give', 'simple', 'modern', 'clean',
+  'nice', 'good', 'new', 'some', 'like', 'it', 'is', 'be', 'please', 'landing', 'mobile', 'web',
+]);
+
+// Words that describe a change to the current design, or name a part of it,
+// rather than naming a new thing to generate.
+const ADJUSTMENT_WORDS = new Set([
+  // styling
+  'dark', 'light', 'mode', 'theme', 'black', 'blue', 'white', 'colour', 'color',
+  'cyberpunk', 'neon', 'matrix', 'futuristic', 'synthwave', 'minimal', 'clean',
+  'corporate', 'editorial', 'style', 'styling', 'brighter', 'darker',
+  // parts of the existing template
+  'button', 'cta', 'transfer', 'headline', 'shape', 'widget', 'card', 'text',
+  'background', 'label', 'title', 'canvas', 'artboard',
+]);
+
+const TITLE_MINOR = new Set(['for', 'and', 'the', 'of', 'a', 'an', 'to', 'in', 'on', 'with']);
+
+function significantWords(prompt) {
+  return String(prompt)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+}
+
+const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+
+function titleCase(words) {
+  return words
+    .map((w, i) => (i > 0 && TITLE_MINOR.has(w) ? w : cap(w)))
+    .join(' ');
+}
+
+// Scoring is weighted by position, not keyword length. In "a recipe app for
+// students" the subject is recipes, and a naive length score picks education
+// because "student" is one character longer than "recipe".
+function matchDomain(prompt) {
+  const lower = String(prompt).toLowerCase();
+  const words = significantWords(prompt);
+
+  let best = null;
+  let bestScore = 0;
+
+  for (const domain of DOMAINS) {
+    let score = 0;
+
+    for (const keyword of domain.keywords) {
+      // Multi-word keywords ("real estate") only ever match the raw string.
+      if (keyword.includes(' ')) {
+        if (lower.includes(keyword)) score += 6;
+        continue;
+      }
+
+      // Tolerate simple plurals only. A loose prefix test matches "care"
+      // against "career", which is how a plant care app became an ATS.
+      const at = words.findIndex((w) => (
+        w === keyword || w === `${keyword}s` || w === `${keyword}es` || `${w}s` === keyword
+      ));
+      if (at === -1) continue;
+
+      // Earlier words carry the subject of the prompt.
+      score += Math.max(1, 6 - at);
+    }
+
+    if (score > bestScore) { best = domain; bestScore = score; }
   }
 
+  return bestScore >= 3 ? best : null;
+}
+
+// Build a believable archetype out of whatever the user actually typed.
+function deriveFromPrompt(prompt) {
+  const words = significantWords(prompt);
+
+  if (!words.length) return null;
+
+  const subject = titleCase(words.slice(0, 3));
+  const brandWords = words.slice(0, 2).map(cap);
+  const appName = brandWords.join('').slice(0, 16) || 'Stage';
+
+  const noun = cap(words[0]);
+
+  // Vary the shape from the prompt itself, so two different unknown prompts
+  // do not produce byte-identical layouts.
+  const spread = words.join('').length;
+  const statCount = spread % 3 === 0 ? 3 : (spread % 3) + 1;
+  const series = Array.from({ length: 7 }, (_, i) => 25 + ((spread * (i + 3) * 7) % 70));
+
+  return {
+    appName,
+    navItems: ['Overview', `${noun}s`, 'Activity', 'Settings'],
+    searchPlaceholder: `Search ${words[0]}s…`,
+    greeting: `${titleCase(words.slice(0, 2))} Overview`,
+    statLabel: 'Active This Month',
+    statValue: '2,480 users',
+    ctaLabel: `New ${noun}`,
+    activityTitle: 'Recent Activity',
+    items: [
+      { title: `${noun} created`, sub: 'Today, 9:12 AM', amount: '+18%' },
+      { title: `${subject} review`, sub: 'Awaiting approval', amount: 'Pending' },
+    ],
+    stats: [
+      { label: 'Active', value: `${240 + (spread % 700)}` },
+      { label: 'This Week', value: `+${8 + (spread % 40)}%` },
+      { label: `Open ${noun}s`, value: `${3 + (spread % 24)}` },
+    ].slice(0, statCount),
+    chart: { title: `${titleCase(words.slice(0, 2))}, Last 7 Days`, series },
+    gdBrand: (words[0] || 'stage').toUpperCase().slice(0, 10),
+    gdHeadline: `${subject.toUpperCase()}, DONE PROPERLY.`,
+  };
+}
+
+function fallbackGenerate(prompt) {
+  const lower = String(prompt).toLowerCase();
+  const result = { theme: null, ctaStyle: null, gdStyle: null, prototype: null, addElements: [], message: '' };
+  const notes = [];
+
+  // 1. Targeted style commands. These adjust the current design rather than
+  //    replacing it, so they must not trigger a full regeneration.
+  if (/\bdark\b/.test(lower)) { result.theme = 'dark'; notes.push('Switched to dark mode.'); }
+  else if (/\blight\b/.test(lower)) { result.theme = 'light'; notes.push('Switched to light mode.'); }
+
+  if (/\bblack\b/.test(lower) && /\b(button|cta)\b/.test(lower)) {
+    result.ctaStyle = 'black';
+    notes.push('Call to action set to contrast black.');
+  } else if (/\bblue\b/.test(lower) && /\b(button|cta)\b/.test(lower)) {
+    result.ctaStyle = 'blue';
+    notes.push('Call to action set to brand blue.');
+  }
+
+  if (/cyberpunk|neon|matrix|futuristic|synthwave/.test(lower)) {
+    result.gdStyle = 'cyberpunk';
+    notes.push('Applied the cyberpunk treatment.');
+  } else if (/minimal|clean|corporate|editorial/.test(lower)) {
+    result.gdStyle = 'modern';
+    notes.push('Applied the modern treatment.');
+  }
+
+  // Distinguish "adjust what is on screen" from "make me something new".
+  // Counting words does not work: "make the transfer button black" has three
+  // significant words but introduces no new subject. Instead, subtract the
+  // vocabulary of styling and of the template's own elements, and see whether
+  // anything is left over.
+  const residual = significantWords(prompt).filter((w) => !ADJUSTMENT_WORDS.has(w));
+  if (notes.length > 0 && residual.length === 0) {
+    result.message = notes.join(' ');
+    return result;
+  }
+
+  // 2. A known domain gives a hand-written archetype.
+  const domain = matchDomain(prompt);
+  if (domain) {
+    result.prototype = {
+      ...domain.data,
+      accentHex: domain.accentHex,
+      items: domain.data.items.map((i) => ({ ...i })),
+    };
+    result.layout = domain.layout;
+    result.gdLayout = domain.gdLayout;
+    if (!result.theme) result.theme = domain.theme;
+    if (!result.gdStyle) result.gdStyle = domain.gdStyle;
+    result.message = [`Generated a ${domain.id} concept: ${domain.data.appName}.`, ...notes].join(' ');
+    return result;
+  }
+
+  // 3. Anything else is built from the user's own words.
+  const derived = deriveFromPrompt(prompt);
+  if (derived) {
+    const lower2 = String(prompt).toLowerCase();
+    result.layout = /play|watch|listen|stream|video|audio|episode|podcast/.test(lower2)
+      ? 'player'
+      : /shop|store|browse|catalog|gallery|collection|marketplace|menu|listing/.test(lower2)
+        ? 'catalog'
+        : 'dashboard';
+    result.gdLayout = result.layout === 'catalog' ? 'productAd' : 'poster';
+    // A stable hue per prompt, so the same words always give the same brand.
+    const hue = [...String(prompt)].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 360, 7);
+    result.prototype = { ...derived, accentHex: hslToHex(hue, 68, 52) };
+    result.message = [
+      `Generated "${derived.appName}" from your prompt. Demo mode approximates unknown domains, so add an API key for a real design.`,
+      ...notes,
+    ].join(' ');
+    return result;
+  }
+
+  result.message = notes.join(' ') || 'Nothing to change. Try describing an app or a campaign.';
   return result;
+}
+
+
+// Stable accent for prompts that match no known domain.
+function hslToHex(h, sPct, lPct) {
+  const s = sPct / 100;
+  const l = lPct / 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+  return [f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('');
 }

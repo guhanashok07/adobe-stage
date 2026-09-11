@@ -1,1291 +1,796 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  MousePointer2, Move, Type, Square, Layout, Sparkles, 
-  ChevronDown, Users, Play, Share, Layers, Palette, 
-  Folder, Settings, Menu, AlignLeft, AlignCenter, AlignRight,
-  Maximize, X, SlidersHorizontal, Image as ImageIcon,
-  Wand2, CornerUpLeft, CornerUpRight, Check, PanelRight,
-  Minus, CreditCard, ArrowRightLeft, PieChart, Search, Bell, Key
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  MousePointer2, Type, Square, Layout, Image as ImageIcon, Folder,
+  ChevronDown, Check, Play, Share2, Menu, PanelRight, Key,
+  Undo2, Redo2, Maximize2, Presentation,
 } from 'lucide-react';
-import Onboarding, { STORAGE_KEY, API_KEY_STORAGE, API_PROVIDER_STORAGE } from './components/Onboarding';
-import { generateWithAI } from './services/aiService';
 
-const App = () => {
-  const [showAIPanel, setShowAIPanel] = useState(true);
-  const [activeWorkspace, setActiveWorkspace] = useState('UI/UX Design');
-  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
-  
-  // Sidebar Toggle States
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  
+import Onboarding, { STORAGE_KEY, API_KEY_STORAGE, API_PROVIDER_STORAGE, API_MODEL_STORAGE } from './components/Onboarding';
+import { generateWithAI, DEFAULT_MODELS } from './services/aiService';
+import AppShell from './components/artboards/AppShell';
+import CampaignArtboard from './components/artboards/CampaignArtboard';
+import LayersPanel from './components/LayersPanel';
+import PropertiesPanel from './components/PropertiesPanel';
+import AIPanel from './components/AIPanel';
+import { ToolButton } from './components/primitives';
+import GhostDemo, { DEMO_SEEN_KEY } from './components/GhostDemo';
+import {
+  ARTBOARDS, CANVAS_SCALE, LAYOUTS, LAYOUTS_FOR, DEFAULT_LAYOUT,
+  initialHistory, historyReducer, layoutFor, elementsFor,
+  baseOf, geometryOf, labelOf,
+} from './state/document';
+
+const WORKSPACES = ['UI/UX Design', 'Graphic Design'];
+const HERO_SELECTION = { 'UI/UX Design': 'hero', 'Graphic Design': 'gdHeadline' };
+
+export default function App() {
+  const [history, dispatch] = useReducer(historyReducer, initialHistory);
+  const doc = history.present;
+
+  const [workspace, setWorkspace] = useState('UI/UX Design');
+  const [workspaceMenu, setWorkspaceMenu] = useState(false);
+  const [selectedId, setSelectedId] = useState('hero');
+
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
+  const [aiOpen, setAiOpen] = useState(true);
+  const [focusedPanel, setFocusedPanel] = useState('canvas');
+
   const [fidelity, setFidelity] = useState(80);
   const [creativity, setCreativity] = useState(30);
-  const [prompt, setPrompt] = useState("");
-  
-  // Interactive States
   const [isGenerating, setIsGenerating] = useState(false);
-  const [canvasTheme, setCanvasTheme] = useState('light');
-  const [ctaStyle, setCtaStyle] = useState('blue'); // 'blue' or 'black'
-  const [gdStyle, setGdStyle] = useState('modern'); // 'modern' or 'cyberpunk'
-  const [aiMessage, setAiMessage] = useState(''); // status message from AI
-  
-  const [selectedElement, setSelectedElement] = useState('hero'); // 'hero', 'card', 'gdHeadline', 'gdShape', or dynamic ID
+  const [message, setMessage] = useState('');
+  const [messageIsError, setMessageIsError] = useState(false);
+  const [crossSurface, setCrossSurface] = useState(false);
 
-  // Dynamic Custom Elements State
-  const [customElements, setCustomElements] = useState([]);
-
-  // Prototype content state (updated via AI prompts or inline direct editing)
-  const [prototypeData, setPrototypeData] = useState({
-    appName: 'AcmeBank',
-    greeting: 'Welcome back, Alex',
-    statLabel: 'Total Balance',
-    statValue: '$24,500.00',
-    ctaLabel: 'Transfer',
-    activityTitle: 'Recent Activity',
-    items: [
-      { id: 1, title: 'Apple Store', sub: 'Today, 2:45 PM', amount: '-$999' },
-      { id: 2, title: 'Upwork Inc.', sub: 'Yesterday', amount: '+$2,400' }
-    ],
-    gdBrand: 'ACME',
-    gdHeadline: 'THE FUTURE OF DIGITAL BANKING.'
-  });
-
-  // Custom Fills per element
-  const [customFills, setCustomFills] = useState({});
-
-  // Onboarding & AI Config
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem(STORAGE_KEY));
-  const [aiApiKey, setAiApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) || '');
-  const [aiProvider, setAiProvider] = useState(() => localStorage.getItem(API_PROVIDER_STORAGE) || 'gemini');
+  const [ghost, setGhost] = useState(false);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) || '');
+  const [provider, setProvider] = useState(() => localStorage.getItem(API_PROVIDER_STORAGE) || 'gemini');
+  const [model, setModel] = useState(() => localStorage.getItem(API_MODEL_STORAGE) || '');
 
-  const handleOnboardingComplete = ({ apiKey, provider }) => {
-    setShowOnboarding(false);
-    setAiApiKey(apiKey);
-    setAiProvider(provider);
+  // Live pointer gesture (drag or corner resize). Held in a ref so mousemove
+  // never re-renders on its own.
+  const gesture = useRef(null);
+  const [draggingId, setDraggingId] = useState(null);
+
+  // Zoom is derived from the space the canvas actually has. A hardcoded scale
+  // clipped the artboard whenever the window was short or the AI panel open.
+  const viewportRef = useRef(null);
+  const [scale, setScale] = useState(CANVAS_SCALE);
+  // The mousemove handler needs the current scale without re-subscribing, so
+  // the fit effect writes it to a ref alongside the state.
+  const scaleRef = useRef(CANVAS_SCALE);
+
+  const wireframe = fidelity < 35;
+  const otherWorkspace = workspace === 'UI/UX Design' ? 'Graphic Design' : 'UI/UX Design';
+
+  useEffect(() => {
+    const node = viewportRef.current;
+    if (!node) return;
+
+    const board = ARTBOARDS[workspace];
+    const fit = () => {
+      const { width, height } = node.getBoundingClientRect();
+      if (!width || !height) return;
+      const next = Math.max(0.25, Number(Math.min(1, (width - 48) / board.w, (height - 40) / board.h).toFixed(3)));
+      scaleRef.current = next;
+      setScale(next);
+    };
+
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [workspace, aiOpen]);
+
+  useEffect(() => {
+    if (showOnboarding) return;
+    if (localStorage.getItem(DEMO_SEEN_KEY)) return;
+    const t = setTimeout(() => setGhost(true), 700);
+    return () => clearTimeout(t);
+  }, [showOnboarding]);
+
+  const commit = useCallback((updater) => dispatch({ type: 'commit', updater }), []);
+  const amend = useCallback((updater) => dispatch({ type: 'amend', updater }), []);
+  const begin = useCallback(() => dispatch({ type: 'begin' }), []);
+
+  // --- selection -----------------------------------------------------------
+
+  const select = useCallback((id) => setSelectedId(id), []);
+
+  const switchWorkspace = useCallback((ws) => {
+    setWorkspace(ws);
+    setSelectedId(HERO_SELECTION[ws]);
+    setWorkspaceMenu(false);
+    setCrossSurface(false);
+  }, []);
+
+  // Keep the selection on the surface you are actually looking at.
+  // A selection only survives if the active layout actually contains it.
+  const visibleSelection = useMemo(() => {
+    if (!selectedId) return null;
+    if (elementsFor(doc, workspace)[selectedId]) return selectedId;
+    const el = doc.custom.find((e) => e.id === selectedId);
+    return el && el.ws === workspace ? selectedId : null;
+  }, [selectedId, workspace, doc]);
+
+  const geometry = visibleSelection
+    ? geometryOf(visibleSelection, doc, workspace)
+    : { x: 0, y: 0, w: 0, h: 0 };
+
+  const accentHex = String(doc.content.accentHex || '1473E6').replace('#', '');
+
+  const defaultFill = (id) => {
+    const dark = doc.theme === 'dark';
+    switch (id) {
+      case 'hero':
+      case 'art':
+      case 'gdShape':
+        return accentHex;
+      case 'card':
+      case 'chart':
+      case 'stats':
+        return dark ? '182234' : 'FFFFFF';
+      case 'gdHeadline':
+        return dark ? 'FFFFFF' : '0B1020';
+      default:
+        return dark ? '334155' : 'E2E8F0';
+    }
   };
 
-  // Dragging & Resizing State
-  const [positions, setPositions] = useState({
-    hero: { x: 0, y: 0 },
-    card: { x: 0, y: 0 },
-    gdHeadline: { x: 0, y: 0 },
-    gdShape: { x: 0, y: 0 }
-  });
-  const [sizes, setSizes] = useState({}); // Stores w and h for custom shapes
-  const [draggingId, setDraggingId] = useState(null);
-  const [resizingId, setResizingId] = useState(null);
+  const activeFill = visibleSelection
+    ? (doc.fills[visibleSelection] || defaultFill(visibleSelection))
+    : '000000';
 
-  const handleMouseMove = (e) => {
-    const scale = 0.85; // Matches the canvas scale
-    
-    if (resizingId) {
-      setSizes(prev => ({
-        ...prev,
-        [resizingId]: {
-          w: Math.max(30, (prev[resizingId]?.w || 96) + (e.movementX / scale)),
-          h: Math.max(30, (prev[resizingId]?.h || 96) + (e.movementY / scale))
-        }
+  // --- pointer gestures ----------------------------------------------------
+
+  const startDrag = useCallback((id) => {
+    begin();
+    setDraggingId(id);
+    gesture.current = { id, kind: 'drag' };
+  }, [begin]);
+
+  const startResize = useCallback((id, corner) => {
+    begin();
+    gesture.current = { id, kind: 'resize', corner };
+  }, [begin]);
+
+  const onMouseMove = (e) => {
+    const g = gesture.current;
+    if (!g) return;
+
+    const dx = e.movementX / scaleRef.current;
+    const dy = e.movementY / scaleRef.current;
+
+    if (g.kind === 'drag') {
+      amend((d) => ({
+        ...d,
+        positions: {
+          ...d.positions,
+          [g.id]: {
+            x: (d.positions[g.id]?.x || 0) + dx,
+            y: (d.positions[g.id]?.y || 0) + dy,
+          },
+        },
       }));
       return;
     }
 
-    if (draggingId) {
-      setPositions(prev => ({
-        ...prev,
-        [draggingId]: {
-          x: (prev[draggingId]?.x || 0) + (e.movementX / scale),
-          y: (prev[draggingId]?.y || 0) + (e.movementY / scale)
-        }
-      }));
-    }
+    amend((d) => {
+      const base = baseOf(g.id, d, workspace);
+      let w = d.sizes[g.id]?.w ?? base.w;
+      let h = d.sizes[g.id]?.h ?? base.h;
+      let shiftX = 0;
+      let shiftY = 0;
+
+      if (g.corner.includes('e')) w += dx;
+      if (g.corner.includes('w')) { w -= dx; shiftX = dx; }
+      if (g.corner.includes('s')) h += dy;
+      if (g.corner.includes('n')) { h -= dy; shiftY = dy; }
+
+      // Clamping must not drag the opposite edge along with it.
+      if (w < 48) { w = 48; shiftX = 0; }
+      if (h < 40) { h = 40; shiftY = 0; }
+
+      return {
+        ...d,
+        sizes: { ...d.sizes, [g.id]: { w, h } },
+        positions: {
+          ...d.positions,
+          [g.id]: {
+            x: (d.positions[g.id]?.x || 0) + shiftX,
+            y: (d.positions[g.id]?.y || 0) + shiftY,
+          },
+        },
+      };
+    });
   };
 
-  const handleMouseUp = () => {
+  const endGesture = () => {
     setDraggingId(null);
-    setResizingId(null);
+    gesture.current = null;
   };
 
-  // Add Tools functionality
-  const addElement = (type) => {
-    const id = `custom-${Date.now()}`;
-    const newEl = { id, type, ws: activeWorkspace };
-    setCustomElements(prev => [...prev, newEl]);
-    setPositions(prev => ({ ...prev, [id]: { x: 0, y: 0 } }));
-    if (type === 'shape') {
-      setSizes(prev => ({ ...prev, [id]: { w: 96, h: 96 } }));
-    }
-    setSelectedElement(id);
-  };
+  // --- property edits ------------------------------------------------------
 
-  // AI Generation (real API or fallback demo)
-  const handleGenerate = async (customPrompt = prompt) => {
-    if (!customPrompt) return;
-    setIsGenerating(true);
-    setAiMessage('');
+  const setGeometry = (prop, value) => {
+    if (!visibleSelection) return;
+    const id = visibleSelection;
+    const base = baseOf(id, doc, workspace);
 
-    try {
-      const result = await generateWithAI(customPrompt, {
-        apiKey: aiApiKey,
-        provider: aiProvider,
-        workspace: activeWorkspace,
-        selectedElement
-      });
-
-      // Apply changes from AI response
-      if (result.theme) setCanvasTheme(result.theme);
-      if (result.ctaStyle) setCtaStyle(result.ctaStyle);
-      if (result.gdStyle) setGdStyle(result.gdStyle);
-
-      // Apply prototype content if generated
-      if (result.prototype) {
-        setPrototypeData(prev => ({
-          ...prev,
-          ...result.prototype,
-          items: result.prototype.items && result.prototype.items.length > 0 ? result.prototype.items : prev.items
-        }));
-      }
-
-      // Add any new elements the AI requested
-      if (result.addElements && result.addElements.length > 0) {
-        result.addElements.forEach(el => addElement(el.type || 'shape'));
-      }
-
-      if (result.message) setAiMessage(result.message);
-    } catch (err) {
-      setAiMessage('Something went wrong. Try again.');
-    }
-
-    setIsGenerating(false);
-    setPrompt('');
-  };
-
-  const handleSuggestionClick = (text) => {
-    setPrompt(text);
-    handleGenerate(text);
-  };
-
-  // Base canvas offsets for coordinates calculation
-  const baseOffsets = {
-    hero: { x: 232, y: 112, w: 280, h: 190 },
-    card: { x: 536, y: 112, w: 240, h: 320 },
-    gdHeadline: { x: 40, y: 96, w: 320, h: 150 },
-    gdShape: { x: 96, y: 256, w: 192, h: 192 }
-  };
-
-  const handlePropChange = (prop, val) => {
-    if (!selectedElement) return;
-    const base = baseOffsets[selectedElement] || { x: 100, y: 100, w: 96, h: 96 };
-    if (prop === 'x') {
-      setPositions(prev => ({
-        ...prev,
-        [selectedElement]: {
-          ...(prev[selectedElement] || { x: 0, y: 0 }),
-          x: val - base.x
-        }
+    if (prop === 'x' || prop === 'y') {
+      commit((d) => ({
+        ...d,
+        positions: {
+          ...d.positions,
+          [id]: { ...(d.positions[id] || { x: 0, y: 0 }), [prop]: value - base[prop] },
+        },
       }));
-    } else if (prop === 'y') {
-      setPositions(prev => ({
-        ...prev,
-        [selectedElement]: {
-          ...(prev[selectedElement] || { x: 0, y: 0 }),
-          y: val - base.y
-        }
-      }));
-    } else if (prop === 'w') {
-      setSizes(prev => ({
-        ...prev,
-        [selectedElement]: {
-          ...(prev[selectedElement] || { w: base.w, h: base.h }),
-          w: Math.max(30, val)
-        }
-      }));
-    } else if (prop === 'h') {
-      setSizes(prev => ({
-        ...prev,
-        [selectedElement]: {
-          ...(prev[selectedElement] || { w: base.w, h: base.h }),
-          h: Math.max(30, val)
-        }
+    } else {
+      commit((d) => ({
+        ...d,
+        sizes: {
+          ...d.sizes,
+          [id]: {
+            w: d.sizes[id]?.w ?? base.w,
+            h: d.sizes[id]?.h ?? base.h,
+            [prop]: Math.max(prop === 'w' ? 48 : 40, value),
+          },
+        },
       }));
     }
   };
 
-  const handleAlign = (type) => {
-    if (!selectedElement) return;
-    const base = baseOffsets[selectedElement] || { x: 100, y: 100, w: 96, h: 96 };
-    const currentW = sizes[selectedElement]?.w || base.w;
-    const currentH = sizes[selectedElement]?.h || base.h;
-    const isGd = activeWorkspace === 'Graphic Design';
-    const artboardW = isGd ? 400 : 600;
+  const align = (type) => {
+    if (!visibleSelection) return;
+    const id = visibleSelection;
+    const board = ARTBOARDS[workspace];
+    const base = baseOf(id, doc, workspace);
+    const g = geometryOf(id, doc, workspace);
 
-    if (type === 'left') {
-      setPositions(prev => ({
-        ...prev,
-        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), x: 32 - (isGd ? 0 : 200) - (base.x - (isGd ? 0 : 200)) }
-      }));
-    } else if (type === 'center') {
-      const targetX = Math.round((artboardW - currentW) / 2);
-      setPositions(prev => ({
-        ...prev,
-        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), x: targetX - (base.x - (isGd ? 0 : 200)) }
-      }));
-    } else if (type === 'right') {
-      const targetX = artboardW - currentW - 32;
-      setPositions(prev => ({
-        ...prev,
-        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), x: targetX - (base.x - (isGd ? 0 : 200)) }
-      }));
-    } else if (type === 'top') {
-      setPositions(prev => ({
-        ...prev,
-        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), y: 32 - base.y }
-      }));
-    } else if (type === 'middle') {
-      const targetY = Math.round((480 - currentH) / 2);
-      setPositions(prev => ({
-        ...prev,
-        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), y: targetY - base.y }
-      }));
-    } else if (type === 'bottom') {
-      const targetY = 480 - currentH - 32;
-      setPositions(prev => ({
-        ...prev,
-        [selectedElement]: { ...(prev[selectedElement] || { x: 0, y: 0 }), y: targetY - base.y }
-      }));
-    }
-  };
+    // Align to the same content box the layouts lay out against, otherwise
+    // aligning an already-flush block shifts it by the difference.
+    const inset = board.pad || 32;
+    const padLeft = board.sidebar + inset;
+    const padTop = board.header + inset;
+    const padRight = board.w - inset - g.w;
+    const padBottom = board.h - inset - g.h;
 
-  const handleFillChange = (val) => {
-    if (!selectedElement) return;
-    const cleanHex = val.replace('#', '');
-    setCustomFills(prev => ({
-      ...prev,
-      [selectedElement]: cleanHex
+    const targets = {
+      left: ['x', padLeft],
+      center: ['x', Math.round(board.sidebar + (board.w - board.sidebar - g.w) / 2)],
+      right: ['x', padRight],
+      top: ['y', padTop],
+      middle: ['y', Math.round(padTop + (padBottom - padTop) / 2)],
+      bottom: ['y', padBottom],
+    };
+
+    const [axis, value] = targets[type];
+    commit((d) => ({
+      ...d,
+      positions: {
+        ...d.positions,
+        [id]: { ...(d.positions[id] || { x: 0, y: 0 }), [axis]: value - base[axis] },
+      },
     }));
   };
 
-  // Dynamic Properties based on selection, theme, custom fills, and drag/resize
-  const defaultFillMap = {
-    hero: canvasTheme === 'light' ? '2563EB' : '1E3A8A',
-    card: canvasTheme === 'light' ? 'FFFFFF' : '1E293B',
-    gdHeadline: canvasTheme === 'light' ? '1E1B4B' : 'FFFFFF',
-    gdShape: '3B82F6'
+  const applyFill = (raw, mode) => {
+    if (!visibleSelection) return;
+    const hex = raw.replace('#', '').slice(0, 6);
+    const updater = (d) => ({ ...d, fills: { ...d.fills, [visibleSelection]: hex } });
+    (mode === 'commit' ? commit : amend)(updater);
   };
 
-  const properties = {
-    hero: { 
-      x: Math.round(232 + (positions.hero?.x || 0)), 
-      y: Math.round(112 + (positions.hero?.y || 0)), 
-      w: sizes.hero?.w ? Math.round(sizes.hero.w) : 280, 
-      h: sizes.hero?.h ? Math.round(sizes.hero.h) : 190, 
-      fill: customFills.hero || defaultFillMap.hero 
-    },
-    card: { 
-      x: Math.round(536 + (positions.card?.x || 0)), 
-      y: Math.round(112 + (positions.card?.y || 0)), 
-      w: sizes.card?.w ? Math.round(sizes.card.w) : 240, 
-      h: sizes.card?.h ? Math.round(sizes.card.h) : 320, 
-      fill: customFills.card || defaultFillMap.card 
-    },
-    gdHeadline: { 
-      x: Math.round(40 + (positions.gdHeadline?.x || 0)), 
-      y: Math.round(96 + (positions.gdHeadline?.y || 0)), 
-      w: sizes.gdHeadline?.w ? Math.round(sizes.gdHeadline.w) : 320, 
-      h: sizes.gdHeadline?.h ? Math.round(sizes.gdHeadline.h) : 150, 
-      fill: customFills.gdHeadline || defaultFillMap.gdHeadline 
-    },
-    gdShape: { 
-      x: Math.round(96 + (positions.gdShape?.x || 0)), 
-      y: Math.round(256 + (positions.gdShape?.y || 0)), 
-      w: sizes.gdShape?.w ? Math.round(sizes.gdShape.w) : 192, 
-      h: sizes.gdShape?.h ? Math.round(sizes.gdShape.h) : 192, 
-      fill: customFills.gdShape || defaultFillMap.gdShape 
+  const setContent = (field, value) => {
+    if (field.startsWith('custom:')) {
+      const id = field.slice('custom:'.length);
+      commit((d) => ({
+        ...d,
+        custom: d.custom.map((e) => (e.id === id ? { ...e, text: value } : e)),
+      }));
+      return;
     }
+    commit((d) => ({ ...d, content: { ...d.content, [field]: value } }));
   };
 
-  // Fallback for dynamically added elements
-  const activeProps = properties[selectedElement] || { 
-    x: Math.round(100 + (positions[selectedElement]?.x || 0)), 
-    y: Math.round(100 + (positions[selectedElement]?.y || 0)), 
-    w: sizes[selectedElement]?.w ? Math.round(sizes[selectedElement].w) : (customElements.find(e => e.id === selectedElement)?.type === 'shape' ? 96 : 'Auto'), 
-    h: sizes[selectedElement]?.h ? Math.round(sizes[selectedElement].h) : (customElements.find(e => e.id === selectedElement)?.type === 'shape' ? 96 : 'Auto'), 
-    fill: customFills[selectedElement] || (canvasTheme === 'light' ? 'E5E7EB' : '334155') 
+  const setItem = (index, field, value) => {
+    commit((d) => ({
+      ...d,
+      content: {
+        ...d.content,
+        items: d.content.items.map((it, i) => (i === index ? { ...it, [field]: value } : it)),
+      },
+    }));
+  };
+
+  const setStat = (index, field, value) => {
+    commit((d) => ({
+      ...d,
+      content: {
+        ...d.content,
+        stats: (d.content.stats || []).map((st, i) => (i === index ? { ...st, [field]: value } : st)),
+      },
+    }));
+  };
+
+  const setChartTitle = (value) => {
+    commit((d) => (d.content.chart
+      ? { ...d, content: { ...d.content, chart: { ...d.content.chart, title: value } } }
+      : d));
+  };
+
+  const setLayout = (id) => commit((d) => (
+    d.layout[workspace] === id ? d : { ...d, layout: { ...d.layout, [workspace]: id } }
+  ));
+
+  const setOpacity = (value) => {
+    if (!visibleSelection) return;
+    commit((d) => ({ ...d, opacity: { ...d.opacity, [visibleSelection]: value } }));
+  };
+
+  // Clears drag, resize and nudge on the selection, matching the reset control
+  // Adobe puts on every property group.
+  const resetTransform = () => {
+    if (!visibleSelection) return;
+    commit((d) => {
+      const positions = { ...d.positions };
+      const sizes = { ...d.sizes };
+      delete positions[visibleSelection];
+      delete sizes[visibleSelection];
+      return { ...d, positions, sizes };
+    });
+  };
+
+  const setTheme = (theme) => commit((d) => (d.theme === theme ? d : { ...d, theme }));
+
+  const addElement = (type) => {
+    const id = `el-${Date.now()}`;
+    commit((d) => ({
+      ...d,
+      custom: [...d.custom, { id, type, ws: workspace, text: 'Custom Text' }],
+      positions: { ...d.positions, [id]: { x: 0, y: 0 } },
+      sizes: type === 'shape' ? { ...d.sizes, [id]: { w: 96, h: 96 } } : d.sizes,
+    }));
+    setSelectedId(id);
+  };
+
+  const deleteSelection = useCallback(() => {
+    const id = selectedId;
+    if (!id || elementsFor(doc, workspace)[id]) return; // layout blocks are not deletable
+    commit((d) => ({ ...d, custom: d.custom.filter((e) => e.id !== id) }));
+    setSelectedId(HERO_SELECTION[workspace]);
+  }, [selectedId, workspace, commit, doc]);
+
+  // --- generation ----------------------------------------------------------
+
+  // Input comes only from the suggestion chips now, so there is no composer
+  // state to fall back to.
+  const generate = async (text) => {
+    const input = String(text || '').trim();
+    if (!input || isGenerating) return;
+
+    setIsGenerating(true);
+    setMessage('');
+    setMessageIsError(false);
+    setCrossSurface(false);
+
+    try {
+      const result = await generateWithAI(input, {
+        apiKey, provider, model, workspace,
+        selectedElement: labelOf(visibleSelection, doc, workspace),
+        fidelity, creativity,
+      });
+
+      commit((d) => {
+        const next = { ...d };
+        if (result.theme) next.theme = result.theme;
+        if (result.ctaStyle) next.ctaStyle = result.ctaStyle;
+        if (result.gdStyle) next.gdStyle = result.gdStyle;
+        if (result.layout && LAYOUTS[result.layout]) {
+          next.layout = { ...d.layout, 'UI/UX Design': result.layout };
+        }
+        if (result.gdLayout && LAYOUTS[result.gdLayout]) {
+          next.layout = { ...next.layout, 'Graphic Design': result.gdLayout };
+        }
+        if (result.prototype) {
+          const { items, ...rest } = result.prototype;
+          next.content = {
+            ...d.content,
+            ...rest,
+            items: items?.length ? items : d.content.items,
+          };
+          // A regenerated concept starts from a clean layout.
+          next.positions = {};
+          next.sizes = {};
+          next.fills = {};
+          next.opacity = {};
+        }
+        return next;
+      });
+
+      // A full concept rewrites both surfaces, so tell the user the surface
+      // they are not looking at also changed.
+      setCrossSurface(Boolean(result.prototype));
+      setMessageIsError(Boolean(result.error));
+      setMessage(result.message || 'Applied.');
+    } catch (err) {
+      setMessageIsError(true);
+      setMessage(`Generation failed: ${err.message}`);
+    }
+
+    setIsGenerating(false);
+  };
+
+  // --- keyboard ------------------------------------------------------------
+
+  useEffect(() => {
+    const onKey = (e) => {
+      const mod = e.metaKey || e.ctrlKey;
+
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        dispatch({ type: e.shiftKey ? 'redo' : 'undo' });
+        return;
+      }
+
+      const target = e.target;
+      if (typeof target?.closest === 'function'
+        && target.closest('input, textarea, [contenteditable="true"]')) return;
+
+      if (e.key === 'Escape') { setSelectedId(null); return; }
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && visibleSelection) {
+        e.preventDefault();
+        deleteSelection();
+        return;
+      }
+
+      const nudge = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (nudge && visibleSelection) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        commit((d) => ({
+          ...d,
+          positions: {
+            ...d.positions,
+            [visibleSelection]: {
+              x: (d.positions[visibleSelection]?.x || 0) + nudge[0] * step,
+              y: (d.positions[visibleSelection]?.y || 0) + nudge[1] * step,
+            },
+          },
+        }));
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [visibleSelection, deleteSelection, commit]);
+
+  // The ghost demo performs the product argument rather than describing it.
+  // Every step is a real document mutation, so what the viewer sees is the
+  // actual tool working, and the final undo leaves the document untouched.
+  const ghostSteps = useRef(0);
+
+  const runGhostStep = useCallback((act) => {
+    if (act === 'select') {
+      setSelectedId('hero');
+    } else if (act === 'drag') {
+      ghostSteps.current += 1;
+      commit((d) => ({
+        ...d,
+        positions: { ...d.positions, hero: { x: 26, y: 14 } },
+      }));
+    } else if (act === 'type') {
+      ghostSteps.current += 1;
+      commit((d) => ({
+        ...d,
+        content: { ...d.content, statLabel: 'Edited by hand' },
+      }));
+    } else if (act === 'undo') {
+      for (let i = 0; i < ghostSteps.current; i += 1) dispatch({ type: 'undo' });
+      ghostSteps.current = 0;
+    }
+  }, [commit]);
+
+  const endGhost = useCallback(() => {
+    // Roll back anything the demo did but did not get to undo itself.
+    for (let i = 0; i < ghostSteps.current; i += 1) dispatch({ type: 'undo' });
+    ghostSteps.current = 0;
+    localStorage.setItem(DEMO_SEEN_KEY, 'true');
+    setGhost(false);
+    setSelectedId(null);
+  }, []);
+
+  // Document name tracks the generated concept.
+  const docName = `${(doc.content.appName || 'Untitled').replace(/\s+/g, '')}_${
+    workspace === 'UI/UX Design' ? 'Dashboard' : 'Campaign'
+  }`;
+
+  const artboardProps = {
+    doc,
+    selectedId: visibleSelection,
+    draggingId,
+    wireframe,
+    onSelect: select,
+    onDragStart: startDrag,
+    onResizeStart: startResize,
+    onContent: setContent,
+    onItem: setItem,
+    onStat: setStat,
+    onChartTitle: setChartTitle,
   };
 
   return (
-    <div 
-      className="flex flex-col h-screen w-full bg-[#1e1e1e] text-[#d4d4d4] font-sans overflow-hidden selection:bg-blue-500/30"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+    <div
+      className="flex flex-col h-screen w-full bg-spectrum-800 text-spectrum-50 font-sans overflow-hidden"
+      onMouseMove={onMouseMove}
+      onMouseUp={endGesture}
+      onMouseLeave={endGesture}
     >
-      
-      {/* Onboarding Overlay */}
-      {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
+      {showOnboarding && (
+        <Onboarding
+          hasKey={Boolean(apiKey)}
+          onComplete={({ apiKey: key, provider: p, model: m }) => {
+            setShowOnboarding(false);
+            setApiKey(key);
+            setProvider(p);
+            setModel(m);
+          }}
+        />
+      )}
 
-      {/* Top Navigation Bar */}
-      <header className="h-12 border-b border-[#333333] bg-[#252525] flex items-center justify-between px-3 shrink-0 relative z-40">
-        <div className="flex items-center gap-4">
-          {/* Left Panel Toggle */}
-          <button 
-            onClick={() => setLeftPanelOpen(!leftPanelOpen)}
-            className={`p-1.5 rounded transition-colors ${leftPanelOpen ? 'bg-[#333333] text-white' : 'hover:bg-[#333333] text-gray-300'}`}
-            title="Toggle Left Sidebar"
-          >
-            <Menu size={18} />
-          </button>
-          
-          <div className="flex items-center gap-2 cursor-pointer hover:bg-[#333333] px-2 py-1 rounded transition-colors">
-            {/* Authentic Adobe Logo SVG */}
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path fill="#FF0000" d="M15.1 2H22V22L15.1 2ZM8.9 2H2V22L8.9 2ZM12 9.4L17.6 22H13.8L12 17.5L8.5 22H5.4L12 9.4Z"/>
+      {/* ---------------------------------------------------------------- Top bar */}
+      <header className="h-11 border-b border-spectrum-400 bg-spectrum-800 flex items-center justify-between px-2.5 shrink-0 relative z-40">
+        <div className="flex items-center gap-1.5">
+          <ToolButton
+            icon={<Menu size={16} />}
+            active={leftOpen}
+            title="Toggle layers panel"
+            onClick={() => setLeftOpen((v) => !v)}
+          />
+
+          <div className="flex items-center gap-2 px-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+              <path fill="#EB1000" d="M15.1 2H22V22L15.1 2ZM8.9 2H2V22L8.9 2ZM12 9.4L17.6 22H13.8L12 17.5L8.5 22H5.4L12 9.4Z" />
             </svg>
-            <span className="font-semibold text-sm text-gray-100">Stage</span>
+            <span className="font-semibold text-[13px] tracking-[-0.01em]">Stage</span>
           </div>
 
-          <div className="h-4 w-px bg-[#444444] mx-1"></div>
+          <div className="h-4 w-px bg-spectrum-400 mx-1" />
 
-          {/* Interactive Workspace Dropdown */}
           <div className="relative">
-            <button 
-              onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-sm font-medium transition-colors ${showWorkspaceMenu ? 'bg-[#333333] text-white' : 'hover:bg-[#333333] text-gray-300'}`}
+            <button
+              onClick={() => setWorkspaceMenu((v) => !v)}
+              className={`flex items-center gap-1.5 h-8 px-2.5 rounded-[4px] text-[13px] font-medium transition-colors ${
+                workspaceMenu ? 'bg-spectrum-500 text-spectrum-50' : 'text-spectrum-100 hover:bg-spectrum-500 hover:text-spectrum-50'
+              }`}
             >
-              {activeWorkspace} <ChevronDown size={14} className={`text-gray-400 transition-transform ${showWorkspaceMenu ? 'rotate-180' : ''}`} />
+              {workspace}
+              <ChevronDown size={13} className={`transition-transform ${workspaceMenu ? 'rotate-180' : ''}`} />
             </button>
-            
-            {showWorkspaceMenu && (
-              <div className="absolute top-full left-0 mt-1 w-48 bg-[#252525] border border-[#333333] rounded-md shadow-xl py-1 z-50">
-                <button 
-                  onClick={() => { setActiveWorkspace('UI/UX Design'); setSelectedElement('hero'); setShowWorkspaceMenu(false); }}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-[#333333] flex items-center justify-between"
-                >
-                  UI/UX Design {activeWorkspace === 'UI/UX Design' && <Check size={14} className="text-blue-500" />}
-                </button>
-                <button 
-                  onClick={() => { setActiveWorkspace('Graphic Design'); setSelectedElement('gdHeadline'); setShowWorkspaceMenu(false); }}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-[#333333] flex items-center justify-between"
-                >
-                  Graphic Design {activeWorkspace === 'Graphic Design' && <Check size={14} className="text-blue-500" />}
-                </button>
+
+            {workspaceMenu && (
+              <div className="absolute top-full left-0 mt-1 w-52 bg-spectrum-700 border border-spectrum-300 rounded-[4px] shadow-modal py-1 z-50">
+                {WORKSPACES.map((ws) => (
+                  <button
+                    key={ws}
+                    onClick={() => switchWorkspace(ws)}
+                    className="w-full text-left px-3 h-8 text-[13px] text-spectrum-50 hover:bg-spectrum-500 flex items-center justify-between transition-colors"
+                  >
+                    {ws} {workspace === ws && <Check size={14} className="text-accent-subtle" />}
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          <div className="h-4 w-px bg-[#444444] mx-1"></div>
-
-          <div className="flex items-center gap-2 text-sm text-gray-300">
-            <span className="hover:text-white cursor-pointer px-2 py-1 rounded hover:bg-[#333333] transition-colors">Fintech_Dashboard_v2</span>
-            <span className="text-xs px-1.5 py-0.5 rounded bg-[#333333] text-gray-400">Draft</span>
-          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex -space-x-2">
-            <div className="w-7 h-7 rounded-full bg-blue-500 border-2 border-[#252525] flex items-center justify-center text-xs text-white font-medium z-20 shadow-sm">JD</div>
-            <div className="w-7 h-7 rounded-full bg-emerald-500 border-2 border-[#252525] flex items-center justify-center text-xs text-white font-medium z-10 shadow-sm">AL</div>
+        {/* Centred document title, Premiere style, with an edited marker. */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 pointer-events-none">
+          <span className="text-[13px] text-spectrum-50">{docName}</span>
+          {history.past.length > 0 && (
+            <span className="text-[13px] text-spectrum-200">· Edited</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <ToolButton
+            icon={<Undo2 size={15} />}
+            title="Undo (⌘Z)"
+            disabled={!history.past.length}
+            onClick={() => dispatch({ type: 'undo' })}
+          />
+          <ToolButton
+            icon={<Redo2 size={15} />}
+            title="Redo (⇧⌘Z)"
+            disabled={!history.future.length}
+            onClick={() => dispatch({ type: 'redo' })}
+          />
+
+          <div className="h-4 w-px bg-spectrum-400 mx-1" />
+
+          <div className="flex -space-x-1.5 mr-1">
+            <div className="w-6 h-6 rounded-full bg-accent ring-2 ring-spectrum-800 grid place-items-center text-[10px] font-semibold text-white">JD</div>
+            <div className="w-6 h-6 rounded-full bg-emerald-600 ring-2 ring-spectrum-800 grid place-items-center text-[10px] font-semibold text-white">AL</div>
           </div>
-          
-          <div className="h-4 w-px bg-[#444444] mx-1"></div>
 
-          {/* Guide & API Key trigger */}
-          <button 
+          <a
+            href="/deck.html"
+            target="_blank"
+            rel="noreferrer"
+            title="Open the launch deck"
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-[4px] bg-spectrum-600 hover:bg-spectrum-500 border border-spectrum-400 text-[12px] font-medium text-spectrum-50 transition-colors"
+          >
+            <Presentation size={12} className="text-spectrum-100" />
+            Deck
+          </a>
+
+          <button
             onClick={() => setShowOnboarding(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#333333] hover:bg-[#3f3f3f] text-xs font-medium text-gray-200 transition-colors border border-[#444444]"
-            title="Open Instructions and API Key Settings"
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-[4px] bg-spectrum-600 hover:bg-spectrum-500 border border-spectrum-400 text-[12px] font-medium text-spectrum-50 transition-colors"
+            title="How to use Stage, and AI key settings"
           >
-            <Key size={12} className={aiApiKey ? "text-green-400" : "text-yellow-400"} />
-            <span>Guide & Key</span>
-          </button>
-          
-          <div className="h-4 w-px bg-[#444444] mx-1"></div>
-          
-          <button className="p-1.5 rounded text-gray-300 transition-colors opacity-40 cursor-not-allowed" title="Present (Coming Soon)">
-            <Play size={16} fill="currentColor" />
-          </button>
-          
-          <button className="flex items-center gap-2 bg-blue-600/40 text-white/50 px-3 py-1.5 rounded-md text-sm font-medium cursor-not-allowed shadow-sm" title="Share (Coming Soon)">
-            <Share size={14} /> Share
+            <Key size={12} className={apiKey ? 'text-emerald-400' : 'text-amber-400'} />
+            Guide &amp; key
           </button>
 
-          <div className="h-4 w-px bg-[#444444] mx-1"></div>
+          <ToolButton icon={<Play size={15} />} title="Present (roadmap)" disabled />
 
-          {/* Right Panel Toggle */}
-          <button 
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className={`p-1.5 rounded transition-colors ${rightPanelOpen ? 'bg-[#333333] text-white' : 'hover:bg-[#333333] text-gray-300'}`}
-            title="Toggle Right Sidebar"
+          <button
+            title="Share (roadmap)"
+            disabled
+            className="flex items-center gap-1.5 h-8 px-3 rounded-[4px] bg-accent/40 text-white/60 text-[13px] font-medium cursor-not-allowed"
           >
-            <PanelRight size={18} />
+            <Share2 size={13} /> Share
           </button>
+
+          <div className="h-4 w-px bg-spectrum-400 mx-1" />
+
+          <ToolButton
+            icon={<PanelRight size={16} />}
+            active={rightOpen}
+            title="Toggle properties panel"
+            onClick={() => setRightOpen((v) => !v)}
+          />
         </div>
       </header>
 
-      {/* Toolbar */}
-      <div className="h-10 border-b border-[#333333] bg-[#1e1e1e] flex items-center justify-center gap-1 px-4 shrink-0 relative z-30">
-        <ToolButton icon={<MousePointer2 size={16} />} active />
-        <ToolButton icon={<Square size={16} />} onClick={() => addElement('shape')} title="Add Shape" />
-        <ToolButton icon={<Type size={16} />} onClick={() => addElement('text')} title="Add Text" />
-        <ToolButton icon={<Layout size={16} />} disabled title="Auto Layout (Coming Soon)" />
-        <ToolButton icon={<ImageIcon size={16} />} disabled title="Image Upload (Coming Soon)" />
-        <div className="w-px h-4 bg-[#444444] mx-2"></div>
-        <ToolButton icon={<Folder size={16} />} disabled title="Creative Cloud Libraries (Coming Soon)" />
+      {/* --------------------------------------------------------------- Toolbar */}
+      <div className="h-10 border-b border-spectrum-400 bg-spectrum-800 flex items-center justify-center gap-1 shrink-0 relative z-30">
+        <ToolButton icon={<MousePointer2 size={15} />} active title="Select (V)" />
+        <ToolButton icon={<Square size={15} />} title="Add shape" onClick={() => addElement('shape')} />
+        <ToolButton icon={<Type size={15} />} title="Add text" onClick={() => addElement('text')} />
+        <div className="w-px h-4 bg-spectrum-400 mx-1.5" />
+        <div className="flex items-center gap-1 ml-1">
+          {LAYOUTS_FOR[workspace].map((id) => (
+            <button
+              key={id}
+              onClick={() => setLayout(id)}
+              title={`${LAYOUTS[id].name} composition`}
+              className={`h-8 px-2.5 rounded-[4px] text-[12px] font-medium transition-colors ${
+                layoutFor(doc, workspace) === id
+                  ? 'bg-accent text-white'
+                  : 'text-spectrum-100 hover:text-spectrum-50 hover:bg-spectrum-500'
+              }`}
+            >
+              {LAYOUTS[id].name}
+            </button>
+          ))}
+        </div>
+        <ToolButton icon={<ImageIcon size={15} />} title="Place image (roadmap)" disabled />
+        <ToolButton icon={<Folder size={15} />} title="Creative Cloud Libraries (roadmap)" disabled />
       </div>
 
-      {/* Main Workspace */}
-      <div className="flex-1 flex overflow-hidden">
-        
-        {/* Left Sidebar (Collapsible) */}
-        <aside className={`border-r border-[#333333] bg-[#252525] flex flex-col shrink-0 relative z-20 transition-all duration-300 ease-in-out overflow-hidden ${leftPanelOpen ? 'w-[260px]' : 'w-0'}`}>
-          <div className="w-[260px]"> {/* Fixed inner width to prevent content reflow during animation */}
-            {/* Brand Guidelines Section */}
-            <div className="p-3 border-b border-[#333333]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Palette size={12} /> Active Brand
-                </span>
-                <button className="p-1 rounded transition-colors opacity-40 cursor-not-allowed" title="Brand Settings (Coming Soon)"><Settings size={12} /></button>
-              </div>
-              <div className="bg-[#1e1e1e] border border-[#333333] rounded-md p-2 cursor-pointer hover:border-blue-500/50 transition-colors group">
-                <div className="text-sm font-medium text-gray-200 mb-1.5 group-hover:text-blue-400 transition-colors">Acme Corp Global</div>
-                <div className="flex gap-1">
-                  <div className="w-4 h-4 rounded-full bg-[#0F172A] shadow-sm"></div>
-                  <div className="w-4 h-4 rounded-full bg-[#3B82F6] shadow-sm"></div>
-                  <div className="w-4 h-4 rounded-full bg-[#10B981] shadow-sm"></div>
-                  <div className="w-4 h-4 rounded-full border border-[#444] bg-white shadow-sm"></div>
-                </div>
-                <div className="text-[10px] text-gray-500 mt-1.5">Inter, Roboto Mono</div>
-              </div>
-            </div>
-
-            {/* Layers Section */}
-            <div className="flex-1 overflow-y-auto h-[calc(100vh-200px)]">
-              <div className="p-3">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                  <Layers size={12} /> Layers
-                </span>
-                <div className="space-y-0.5">
-                  {activeWorkspace === 'UI/UX Design' ? (
-                    <LayerItem name="App Dashboard Canvas" type="frame" expanded>
-                      <LayerItem name="App Sidebar Nav" type="group" />
-                      <LayerItem name="Top Search Header" type="group" />
-                      <LayerItem name="Balance Widget" type="group" selected={selectedElement === 'hero'} onClick={() => setSelectedElement('hero')} expanded>
-                        <LayerItem name="Balance Value" type="text" />
-                        <LayerItem name="Transfer Button" type="component" />
-                      </LayerItem>
-                      <LayerItem name="Transactions List" type="group" selected={selectedElement === 'card'} onClick={() => setSelectedElement('card')} expanded>
-                         <LayerItem name="List Item 1" type="component" />
-                         <LayerItem name="List Item 2" type="component" />
-                      </LayerItem>
-                      {/* Dynamic Elements in Layers */}
-                      {customElements.filter(el => el.ws === 'UI/UX Design').map((el, i) => (
-                         <LayerItem key={el.id} name={`Custom ${el.type === 'text' ? 'Text' : 'Shape'} ${i+1}`} type={el.type} selected={selectedElement === el.id} onClick={() => setSelectedElement(el.id)} />
-                      ))}
-                      <LayerItem name="Dashboard Background" type="image" />
-                    </LayerItem>
-                  ) : (
-                    <LayerItem name="Social Media Ad" type="frame" expanded>
-                      <LayerItem name="Brand Logo" type="image" />
-                      <LayerItem name="Main Headline" type="text" selected={selectedElement === 'gdHeadline'} onClick={() => setSelectedElement('gdHeadline')} />
-                      <LayerItem name="Abstract Shape" type="component" selected={selectedElement === 'gdShape'} onClick={() => setSelectedElement('gdShape')} />
-                      {/* Dynamic Elements in Layers */}
-                      {customElements.filter(el => el.ws === 'Graphic Design').map((el, i) => (
-                         <LayerItem key={el.id} name={`Custom ${el.type === 'text' ? 'Text' : 'Shape'} ${i+1}`} type={el.type} selected={selectedElement === el.id} onClick={() => setSelectedElement(el.id)} />
-                      ))}
-                      <LayerItem name="Gradient Background" type="image" />
-                    </LayerItem>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* ------------------------------------------------------------ Workspace */}
+      <div className="flex-1 flex overflow-hidden gap-px bg-spectrum-900">
+        <aside
+          onMouseDown={() => setFocusedPanel('layers')}
+          className={`shrink-0 overflow-hidden transition-[width] duration-200 relative ${
+            leftOpen ? 'w-[248px]' : 'w-0'
+          }`}
+        >
+          {focusedPanel === 'layers' && (
+            <div className="absolute inset-0 border border-accent pointer-events-none z-30" />
+          )}
+          <LayersPanel doc={doc} workspace={workspace} selectedId={visibleSelection} onSelect={select} />
         </aside>
 
-        {/* Canvas Area */}
-        <main className="flex-1 bg-[#121212] relative overflow-hidden flex items-center justify-center" style={{ backgroundImage: 'radial-gradient(#2a2a2a 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
-          
-          {/* Zoom controls */}
-          <div className="absolute top-4 right-4 bg-[#252525] border border-[#333333] rounded-md flex items-center shadow-lg z-20">
-            <button className="px-3 py-1.5 text-xs font-medium hover:bg-[#333333] border-r border-[#333333] rounded-l-md transition-colors">75%</button>
-            <button className="p-1.5 hover:bg-[#333333] rounded-r-md transition-colors"><Maximize size={14} /></button>
+        {/* The AI panel is docked below the artboard rather than floating over
+            it. Overlaying meant the panel covered the lower third of the
+            design you were editing. */}
+        <main
+          onMouseDown={() => setFocusedPanel('canvas')}
+          className="flex-1 bg-spectrum-900 relative overflow-hidden flex flex-col"
+          style={{ backgroundImage: 'radial-gradient(#2A2A2A 1px, transparent 1px)', backgroundSize: '24px 24px' }}
+        >
+          <div className="absolute top-3 right-3 flex items-center h-8 bg-spectrum-700 border border-spectrum-400 rounded-[4px] shadow-panel z-20 overflow-hidden">
+            <span className="px-3 text-[12px] font-medium text-spectrum-100 tabular border-r border-spectrum-400 leading-8">
+              {Math.round(scale * 100)}%
+            </span>
+            <span className="w-8 h-8 grid place-items-center text-spectrum-100" title="Zoom follows the window size">
+              <Maximize2 size={13} />
+            </span>
           </div>
 
-          {/* The Artboard / Canvas Mockup */}
-          {activeWorkspace === 'UI/UX Design' ? (
-            // --- NEW: FINTECH APP DASHBOARD UI ---
-            <div className={`w-[800px] h-[500px] rounded-lg shadow-2xl relative overflow-hidden flex scale-[0.85] transform origin-center transition-colors duration-700 ease-in-out ${canvasTheme === 'dark' ? 'bg-[#0f172a]' : 'bg-[#f8fafc]'}`}>
-              
-              {/* App Sidebar */}
-              <div className={`w-[200px] border-r flex flex-col p-5 transition-colors duration-700 z-10 ${canvasTheme === 'dark' ? 'border-[#1e293b] bg-[#1e293b]/50' : 'border-gray-200 bg-white'}`}>
-                <div className="font-bold text-xl flex items-center gap-2 mb-8">
-                  <div className={`w-6 h-6 rounded-md ${canvasTheme === 'dark' ? 'bg-blue-500' : 'bg-blue-600'}`}></div>
-                  <span 
-                    className={`transition-colors outline-none cursor-text ${canvasTheme === 'dark' ? 'text-white' : 'text-gray-900'}`}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onBlur={(e) => setPrototypeData(p => ({ ...p, appName: e.target.innerText }))}
-                  >
-                    {prototypeData.appName}
-                  </span>
-                </div>
-                
-                <div className="space-y-1">
-                  <div className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${canvasTheme === 'dark' ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
-                    <Layout size={16} /> Dashboard
-                  </div>
-                  <div className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${canvasTheme === 'dark' ? 'text-gray-400 hover:text-white hover:bg-[#334155]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
-                    <CreditCard size={16} /> Cards
-                  </div>
-                  <div className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${canvasTheme === 'dark' ? 'text-gray-400 hover:text-white hover:bg-[#334155]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
-                    <ArrowRightLeft size={16} /> Transfers
-                  </div>
-                  <div className={`flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer ${canvasTheme === 'dark' ? 'text-gray-400 hover:text-white hover:bg-[#334155]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
-                    <PieChart size={16} /> Analytics
-                  </div>
-                </div>
-              </div>
-              
-              {/* Main Content Area */}
-              <div className="flex-1 flex flex-col relative">
-                
-                {/* Overlay Loader for AI Generation Effect */}
-                {isGenerating && (
-                  <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px] z-50 flex items-center justify-center rounded-r-lg">
-                     <div className="bg-[#1e1e1e] border border-[#444] shadow-2xl rounded-full px-6 py-3 flex items-center gap-3 animate-bounce">
-                       <Sparkles className="animate-spin text-purple-500" size={20} />
-                       <span className="text-sm font-medium text-white">Stage AI is generating...</span>
-                     </div>
-                  </div>
-                )}
-
-                {/* Top Header */}
-                <div className={`h-16 border-b flex items-center justify-between px-8 transition-colors duration-700 z-10 ${canvasTheme === 'dark' ? 'border-[#1e293b]' : 'border-gray-200'}`}>
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${canvasTheme === 'dark' ? 'bg-[#1e293b] text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
-                    <Search size={14} />
-                    <span className="text-xs">Search transactions...</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Bell size={18} className={`transition-colors ${canvasTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 border-2 border-white shadow-sm"></div>
-                  </div>
-                </div>
-
-                {/* Dashboard Content */}
-                <div className="flex-1 p-8 relative">
-                  <h1 
-                    className={`text-2xl font-bold mb-6 transition-colors outline-none cursor-text ${canvasTheme === 'dark' ? 'text-white' : 'text-gray-900'}`}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onBlur={(e) => setPrototypeData(p => ({ ...p, greeting: e.target.innerText }))}
-                  >
-                    {prototypeData.greeting}
-                  </h1>
-                  
-                  {/* Left Column: Balance Widget (Draggable ID: hero) */}
-                  <div 
-                    className={`absolute group ${draggingId === 'hero' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                    onClick={(e) => { e.stopPropagation(); setSelectedElement('hero'); }}
-                    onMouseDown={(e) => { 
-                      e.stopPropagation(); 
-                      setSelectedElement('hero');
-                      if (e.target.closest('[contenteditable="true"]')) return; // Allow text editing without dragging
-                      setDraggingId('hero'); 
-                    }}
-                    style={{ transform: `translate(${positions.hero.x}px, ${positions.hero.y}px)`, left: '32px', top: '112px', zIndex: selectedElement === 'hero' ? 10 : 1 }}
-                  >
-                    {/* Active Selection Outline */}
-                    <div className={`absolute inset-0 border-2 rounded-2xl pointer-events-none -m-2 transition-all duration-200 ${selectedElement === 'hero' ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                      {selectedElement === 'hero' && (
-                        <>
-                          <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">Balance Widget</div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Actual Widget Content */}
-                    <div 
-                      className={`p-6 rounded-2xl shadow-xl transition-all duration-700 text-white overflow-hidden relative ${customFills.hero ? '' : (canvasTheme === 'dark' ? 'bg-gradient-to-br from-blue-800 to-indigo-900' : 'bg-gradient-to-br from-blue-600 to-blue-800')}`}
-                      style={{
-                        width: sizes.hero?.w ? `${sizes.hero.w}px` : '280px',
-                        height: sizes.hero?.h ? `${sizes.hero.h}px` : undefined,
-                        backgroundColor: customFills.hero ? `#${customFills.hero}` : undefined
-                      }}
-                    >
-                      <div className="absolute -right-10 -top-10 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
-                      
-                      {/* Editable Text */}
-                      <div 
-                        className="text-blue-100 text-sm font-medium mb-1 relative z-10 outline-none cursor-text" 
-                        contentEditable 
-                        suppressContentEditableWarning
-                        onBlur={(e) => setPrototypeData(p => ({ ...p, statLabel: e.target.innerText }))}
-                      >
-                        {prototypeData.statLabel}
-                      </div>
-                      <div 
-                        className="text-3xl font-bold mb-6 relative z-10 outline-none cursor-text" 
-                        contentEditable 
-                        suppressContentEditableWarning
-                        onBlur={(e) => setPrototypeData(p => ({ ...p, statValue: e.target.innerText }))}
-                      >
-                        {prototypeData.statValue}
-                      </div>
-                      
-                      <div className="flex gap-3 relative z-10 pointer-events-none">
-                        {/* Dynamic CTA Button */}
-                        <button className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-all duration-700 shadow-md ${ctaStyle === 'black' ? 'bg-[#000000] text-white shadow-black/20' : 'bg-white text-blue-900 shadow-white/10'}`}>{prototypeData.ctaLabel}</button>
-                        <button className="p-2 rounded-lg bg-white/20 text-white backdrop-blur-sm"><ArrowRightLeft size={16} /></button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Transactions (Draggable ID: card) */}
-                  <div 
-                    className={`absolute group ${draggingId === 'card' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                    onClick={(e) => { e.stopPropagation(); setSelectedElement('card'); }}
-                    onMouseDown={(e) => { 
-                      e.stopPropagation(); 
-                      setSelectedElement('card');
-                      if (e.target.closest('[contenteditable="true"]')) return;
-                      setDraggingId('card'); 
-                    }}
-                    style={{ transform: `translate(${positions.card.x}px, ${positions.card.y}px)`, left: '344px', top: '112px', zIndex: selectedElement === 'card' ? 10 : 1 }}
-                  >
-                    {/* Active Selection Outline */}
-                    <div className={`absolute inset-0 border-2 rounded-xl pointer-events-none -m-2 transition-all duration-200 ${selectedElement === 'card' ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                      {selectedElement === 'card' && (
-                        <>
-                          <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">Transactions List</div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Actual Widget Content */}
-                    <div 
-                      className={`p-5 rounded-xl border shadow-sm transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-[#1e293b] border-[#334155]' : 'bg-white border-gray-200'}`}
-                      style={{
-                        width: sizes.card?.w ? `${sizes.card.w}px` : '240px',
-                        height: sizes.card?.h ? `${sizes.card.h}px` : undefined,
-                        backgroundColor: customFills.card ? `#${customFills.card}` : undefined
-                      }}
-                    >
-                      <h3 
-                        className={`font-bold mb-4 text-sm outline-none cursor-text ${canvasTheme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}
-                        contentEditable suppressContentEditableWarning
-                        onBlur={(e) => setPrototypeData(p => ({ ...p, activityTitle: e.target.innerText }))}
-                      >
-                        {prototypeData.activityTitle}
-                      </h3>
-                      <div className="space-y-4">
-                        {(prototypeData.items || []).map((item, idx) => (
-                          <div key={idx} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${idx % 2 === 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                                {idx % 2 === 0 ? <CreditCard size={14}/> : <PieChart size={14}/>}
-                              </div>
-                              <div>
-                                <div 
-                                  className={`text-xs font-bold outline-none cursor-text ${canvasTheme === 'dark' ? 'text-gray-300' : 'text-gray-800'}`}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  onBlur={(e) => {
-                                    const val = e.target.innerText;
-                                    setPrototypeData(p => {
-                                      const newItems = [...p.items];
-                                      if (newItems[idx]) newItems[idx] = { ...newItems[idx], title: val };
-                                      return { ...p, items: newItems };
-                                    });
-                                  }}
-                                >
-                                  {item.title}
-                                </div>
-                                <div 
-                                  className={`text-[10px] outline-none cursor-text ${canvasTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  onBlur={(e) => {
-                                    const val = e.target.innerText;
-                                    setPrototypeData(p => {
-                                      const newItems = [...p.items];
-                                      if (newItems[idx]) newItems[idx] = { ...newItems[idx], sub: val };
-                                      return { ...p, items: newItems };
-                                    });
-                                  }}
-                                >
-                                  {item.sub}
-                                </div>
-                              </div>
-                            </div>
-                            <div 
-                              className={`text-xs font-bold outline-none cursor-text ${String(item.amount).includes('-') ? (canvasTheme === 'dark' ? 'text-gray-300' : 'text-gray-800') : 'text-green-500'}`}
-                              contentEditable
-                              suppressContentEditableWarning
-                              onBlur={(e) => {
-                                const val = e.target.innerText;
-                                setPrototypeData(p => {
-                                  const newItems = [...p.items];
-                                  if (newItems[idx]) newItems[idx] = { ...newItems[idx], amount: val };
-                                  return { ...p, items: newItems };
-                                });
-                              }}
-                            >
-                              {item.amount}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Render Dynamically Added Elements (UI/UX) */}
-                  {customElements.filter(el => el.ws === 'UI/UX Design').map(el => (
-                    <div
-                      key={el.id}
-                      className={`absolute group ${draggingId === el.id ? 'cursor-grabbing' : 'cursor-grab'}`}
-                      style={{ 
-                        top: 100, left: 100, // starting point
-                        transform: `translate(${positions[el.id]?.x || 0}px, ${positions[el.id]?.y || 0}px)`, 
-                        zIndex: selectedElement === el.id ? 20 : 5 
-                      }}
-                      onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); }}
-                      onMouseDown={(e) => { 
-                        e.stopPropagation(); 
-                        setSelectedElement(el.id);
-                        if (e.target.closest('[contenteditable="true"]')) return;
-                        setDraggingId(el.id); 
-                      }}
-                    >
-                      <div className={`absolute inset-0 border-2 rounded pointer-events-none -m-1 transition-all duration-200 ${selectedElement === el.id ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                        {selectedElement === el.id && el.type === 'text' && (
-                          <>
-                            <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                            <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          </>
-                        )}
-                      </div>
-                      
-                      {el.type === 'shape' ? (
-                        <div 
-                          className={`relative shadow-lg border border-white/10 ${canvasTheme === 'dark' ? 'bg-[#334155]' : 'bg-gray-200'}`}
-                          style={{ width: sizes[el.id]?.w || 96, height: sizes[el.id]?.h || 96, borderRadius: 8 }}
-                        >
-                          {/* Resize Handle */}
-                          {selectedElement === el.id && (
-                            <div 
-                              className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-se-resize shadow-md"
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                setResizingId(el.id);
-                              }}
-                            />
-                          )}
-                        </div>
-                      ) : (
-                        <div 
-                          contentEditable 
-                          suppressContentEditableWarning
-                          className={`text-2xl font-bold whitespace-nowrap outline-none cursor-text ${canvasTheme === 'dark' ? 'text-white' : 'text-gray-800'}`}
-                        >
-                          Custom Text
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            // --- Graphic Design Workspace Canvas ---
-            <div className={`w-[400px] h-[500px] rounded-lg shadow-2xl relative overflow-hidden flex flex-col scale-[0.85] transform origin-center transition-colors duration-700 ease-in-out ${canvasTheme === 'dark' ? 'bg-gradient-to-br from-indigo-950 to-violet-950' : 'bg-gradient-to-br from-indigo-50 to-purple-100'}`}>
-              
-              {/* Overlay Loader for AI Generation Effect */}
-              {isGenerating && (
-                <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px] z-50 flex items-center justify-center rounded-lg">
-                   <div className="bg-[#1e1e1e] border border-[#444] shadow-2xl rounded-full px-6 py-3 flex items-center gap-3 animate-bounce">
-                     <Sparkles className="animate-spin text-purple-500" size={20} />
-                     <span className="text-sm font-medium text-white">Stage AI is generating...</span>
-                   </div>
-                </div>
-              )}
-
-              {/* Background abstract element (static) */}
-              <div className={`absolute -right-20 -top-20 w-80 h-80 rounded-full blur-3xl transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-pink-600/40' : 'bg-pink-300/50'}`}></div>
-              <div className={`absolute -left-20 -bottom-20 w-64 h-64 rounded-full blur-3xl transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-blue-600/40' : 'bg-blue-300/50'}`}></div>
-
-              {/* Brand Logo */}
-              <div className="absolute top-6 left-6 flex items-center gap-2 pointer-events-none z-10">
-                 <div className={`w-6 h-6 rounded-md transition-colors duration-700 ${canvasTheme === 'dark' ? 'bg-white' : 'bg-indigo-600'}`}></div>
-                 <span className={`font-bold text-sm transition-colors duration-700 ${canvasTheme === 'dark' ? 'text-white' : 'text-indigo-900'}`}>{prototypeData.gdBrand || 'ACME'}</span>
-              </div>
-
-              {/* Headline Text (Draggable) */}
-              <div 
-                className={`absolute left-10 top-24 group ${draggingId === 'gdHeadline' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                onClick={(e) => { e.stopPropagation(); setSelectedElement('gdHeadline'); }}
-                onMouseDown={(e) => { 
-                  e.stopPropagation(); 
-                  setSelectedElement('gdHeadline');
-                  if (e.target.closest('[contenteditable="true"]')) return;
-                  setDraggingId('gdHeadline'); 
-                }}
-                style={{ 
-                  width: sizes.gdHeadline?.w ? `${sizes.gdHeadline.w}px` : '320px',
-                  transform: `translate(${positions.gdHeadline.x}px, ${positions.gdHeadline.y}px)`, 
-                  zIndex: selectedElement === 'gdHeadline' ? 10 : 2 
-                }}
-              >
-                <div className={`absolute inset-0 border-2 rounded pointer-events-none -m-2 transition-all duration-200 ${selectedElement === 'gdHeadline' ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                  {selectedElement === 'gdHeadline' && (
-                    <>
-                      <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                      <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">Main Headline</div>
-                    </>
-                  )}
-                </div>
-
-                {gdStyle === 'cyberpunk' ? (
-                  <h2 
-                    contentEditable suppressContentEditableWarning
-                    className={`text-[42px] font-mono font-bold leading-none tracking-tighter outline-none cursor-text transition-all duration-700 ${customFills.gdHeadline ? '' : 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-fuchsia-500'} drop-shadow-[0_0_15px_rgba(0,255,255,0.4)]`}
-                    style={{ color: customFills.gdHeadline ? `#${customFills.gdHeadline}` : undefined }}
-                    onBlur={(e) => setPrototypeData(p => ({ ...p, gdHeadline: e.target.innerText }))}
-                  >
-                    {prototypeData.gdHeadline || 'NEO-BANKING PROTOCOL INITIATED_'}
-                  </h2>
-                ) : (
-                  <h2 
-                    contentEditable suppressContentEditableWarning
-                    className={`text-5xl font-black leading-none tracking-tight outline-none cursor-text transition-colors duration-700 ${customFills.gdHeadline ? '' : (canvasTheme === 'dark' ? 'text-white' : 'text-indigo-950')}`}
-                    style={{ color: customFills.gdHeadline ? `#${customFills.gdHeadline}` : undefined }}
-                    onBlur={(e) => setPrototypeData(p => ({ ...p, gdHeadline: e.target.innerText }))}
-                  >
-                    {prototypeData.gdHeadline || 'THE FUTURE OF DIGITAL BANKING.'}
-                  </h2>
-                )}
-              </div>
-
-              {/* Abstract Shape (Draggable) */}
-              <div 
-                className={`absolute top-64 left-24 group ${draggingId === 'gdShape' ? 'cursor-grabbing' : 'cursor-grab'}`}
-                onClick={(e) => { e.stopPropagation(); setSelectedElement('gdShape'); }}
-                onMouseDown={(e) => { e.stopPropagation(); setDraggingId('gdShape'); setSelectedElement('gdShape'); }}
-                style={{ 
-                  width: sizes.gdShape?.w ? `${sizes.gdShape.w}px` : '192px',
-                  height: sizes.gdShape?.h ? `${sizes.gdShape.h}px` : '192px',
-                  transform: `translate(${positions.gdShape.x}px, ${positions.gdShape.y}px)`, 
-                  zIndex: selectedElement === 'gdShape' ? 10 : 2 
-                }}
-              >
-                <div className={`absolute inset-0 border-2 rounded-xl pointer-events-none -m-2 transition-all duration-200 ${selectedElement === 'gdShape' ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                   {selectedElement === 'gdShape' && (
-                    <>
-                      <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                      <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">Abstract Shape</div>
-                    </>
-                  )}
-                </div>
-                <div 
-                  className={`w-full h-full rounded-2xl backdrop-blur-md border shadow-2xl flex items-center justify-center transform transition-all duration-700 pointer-events-none ${gdStyle === 'cyberpunk' ? 'bg-black/40 border-cyan-500/50 rotate-45' : 'rotate-12 border-white/20'} ${canvasTheme === 'dark' ? (gdStyle === 'cyberpunk' ? '' : 'bg-white/10') : 'bg-white/40'}`}
-                  style={{
-                    backgroundColor: customFills.gdShape ? `#${customFills.gdShape}33` : undefined,
-                    borderColor: customFills.gdShape ? `#${customFills.gdShape}` : undefined
-                  }}
-                >
-                   <div 
-                     className={`w-24 h-24 rounded-full animate-pulse transition-all duration-700 ${gdStyle === 'cyberpunk' ? 'bg-gradient-to-tr from-cyan-400 to-fuchsia-500 shadow-[0_0_30px_rgba(0,255,255,0.6)] rounded-none rotate-45' : 'bg-gradient-to-tr from-blue-400 to-pink-400'}`}
-                     style={{
-                       background: customFills.gdShape ? `radial-gradient(circle, #${customFills.gdShape}, transparent)` : undefined
-                     }}
-                   />
-                </div>
-              </div>
-
-               {/* Render Dynamically Added Elements (Graphic Design) */}
-               {customElements.filter(el => el.ws === 'Graphic Design').map(el => (
-                  <div
-                    key={el.id}
-                    className={`absolute group ${draggingId === el.id ? 'cursor-grabbing' : 'cursor-grab'}`}
-                    style={{ 
-                      top: 100, left: 100, // starting point
-                      transform: `translate(${positions[el.id]?.x || 0}px, ${positions[el.id]?.y || 0}px)`, 
-                      zIndex: selectedElement === el.id ? 20 : 5 
-                    }}
-                    onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); }}
-                    onMouseDown={(e) => { 
-                      e.stopPropagation(); 
-                      setSelectedElement(el.id);
-                      if (e.target.closest('[contenteditable="true"]')) return;
-                      setDraggingId(el.id); 
-                    }}
-                  >
-                    <div className={`absolute inset-0 border-2 rounded pointer-events-none -m-1 transition-all duration-200 ${selectedElement === el.id ? 'border-blue-500 opacity-100' : 'border-transparent group-hover:border-blue-500/30'}`}>
-                      {selectedElement === el.id && el.type === 'text' && (
-                        <>
-                          <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                          <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-blue-500 rounded-sm"></div>
-                        </>
-                      )}
-                    </div>
-                    
-                    {el.type === 'shape' ? (
-                      <div 
-                        className={`relative shadow-lg border border-white/20 backdrop-blur-md ${canvasTheme === 'dark' ? 'bg-indigo-500/50' : 'bg-white/60'}`}
-                        style={{ width: sizes[el.id]?.w || 96, height: sizes[el.id]?.h || 96, borderRadius: 8 }}
-                      >
-                         {/* Resize Handle */}
-                         {selectedElement === el.id && (
-                          <div 
-                            className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-se-resize shadow-md"
-                            onMouseDown={(e) => {
-                              e.stopPropagation();
-                              setResizingId(el.id);
-                            }}
-                          />
-                        )}
-                      </div>
-                    ) : (
-                      <div 
-                        contentEditable suppressContentEditableWarning
-                        className={`text-2xl font-bold whitespace-nowrap outline-none cursor-text ${canvasTheme === 'dark' ? 'text-white' : 'text-indigo-900'}`}
-                      >
-                        Custom Text
-                      </div>
-                    )}
-                  </div>
-                ))}
+          {wireframe && (
+            <div className="absolute top-3 left-3 h-8 px-3 flex items-center rounded-[4px] bg-spectrum-700 border border-spectrum-400 text-[11px] font-medium text-spectrum-100 shadow-panel z-20">
+              Wireframe fidelity. Raise the slider for a high-fi render
             </div>
           )}
 
-          {/* AI Prompt Interface Toggle & Panel */}
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex flex-col items-center shadow-2xl z-50">
-            {!showAIPanel ? (
-              <button 
-                onClick={() => setShowAIPanel(true)}
-                className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-[1px] rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105"
-              >
-                <div className="bg-[#1e1e1e] hover:bg-[#252525] rounded-full px-6 py-3 flex items-center gap-2 transition-colors">
-                  <Sparkles size={18} className="text-purple-400" />
-                  <span className="font-semibold text-sm bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-400">
-                    Stage AI
-                  </span>
-                </div>
-              </button>
-            ) : (
-              <div className="bg-[#222222]/95 backdrop-blur-xl border border-[#444] rounded-2xl w-[560px] flex flex-col shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-300 ring-1 ring-white/10">
-                <div className="flex items-center justify-between px-4 py-2 border-b border-[#333]">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={16} className="text-purple-400" />
-                    <span className="font-medium text-sm text-gray-200">Stage AI Co-pilot</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                     <button className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors" title="History">
-                        <CornerUpLeft size={14} />
-                     </button>
-                     {/* Minimize Button */}
-                    <button onClick={() => setShowAIPanel(false)} className="p-1 hover:bg-[#333] rounded text-gray-400 transition-colors" title="Minimize">
-                      <Minus size={16} />
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="p-4 flex gap-4">
-                  <div className="flex-1 flex flex-col gap-3">
-                    <div className="relative">
-                      <textarea 
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleGenerate();
-                          }
-                        }}
-                        placeholder={`Describe what you want to create or change in the ${
-                          selectedElement === 'hero' ? 'Balance Widget' : 
-                          selectedElement === 'card' ? 'Transactions List' : 
-                          selectedElement === 'gdHeadline' ? 'Main Headline' : 
-                          selectedElement === 'gdShape' ? 'Abstract Shape' : 'selection'
-                        }...`}
-                        className="w-full bg-[#111] border border-[#444] rounded-lg p-3 pb-12 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 resize-none h-[110px] transition-colors"
-                      />
-                      
-                      {/* Interactive Prompt Bubbles Inside Text Area Footer */}
-                      <div className="absolute bottom-3 left-3 right-12 flex gap-2 overflow-x-auto no-scrollbar pointer-events-auto">
-                        <button 
-                          onClick={() => handleSuggestionClick(canvasTheme === 'light' ? "Make it dark mode" : "Make it light mode")}
-                          className="flex items-center gap-1.5 shrink-0 bg-[#2a2a2a] hover:bg-[#333] border border-[#444] hover:border-purple-500/50 text-gray-300 hover:text-purple-400 transition-colors px-3 py-1.5 rounded-full text-[11px] font-medium shadow-sm"
-                        >
-                          <Sparkles size={10} /> {canvasTheme === 'light' ? "Make it dark mode" : "Make it light mode"}
-                        </button>
-                        {activeWorkspace === 'UI/UX Design' ? (
-                          <button 
-                            onClick={() => handleSuggestionClick("Make transfer button black")}
-                            className="flex items-center gap-1.5 shrink-0 bg-[#2a2a2a] hover:bg-[#333] border border-[#444] hover:border-blue-500/50 text-gray-300 hover:text-white transition-colors px-3 py-1.5 rounded-full text-[11px] font-medium shadow-sm"
-                          >
-                            <Sparkles size={10} /> Make transfer button black
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={() => handleSuggestionClick("Make it cyberpunk style")}
-                            className="flex items-center gap-1.5 shrink-0 bg-[#2a2a2a] hover:bg-[#333] border border-[#444] hover:border-cyan-500/50 text-gray-300 hover:text-cyan-400 transition-colors px-3 py-1.5 rounded-full text-[11px] font-medium shadow-sm"
-                          >
-                            <Sparkles size={10} /> Make it cyberpunk style
-                          </button>
-                        )}
-                      </div>
-
-                      <button 
-                        onClick={() => handleGenerate()}
-                        disabled={isGenerating || !prompt}
-                        className={`absolute top-3 right-3 p-1.5 rounded-md transition-colors ${prompt && !isGenerating ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md' : 'bg-[#333] text-gray-500'}`}
-                      >
-                        <Wand2 size={16} />
-                      </button>
-                    </div>
-
-                    {/* Differentiator: Temperature/Style Controls */}
-                    <div className="flex flex-col gap-4 p-3 bg-[#1a1a1a] rounded-lg border border-[#333]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-400 flex items-center gap-1">
-                           <SlidersHorizontal size={12} /> Parameters
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1">
-                          <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                            <span>Wireframe</span>
-                            <span>{fidelity}% Fidelity</span>
-                            <span>High-Fi</span>
-                          </div>
-                          <input 
-                            type="range" min="0" max="100" value={fidelity} onChange={(e) => setFidelity(e.target.value)}
-                            className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-purple-500" 
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                            <span>Strict (Brand)</span>
-                            <span>{creativity}% Creative</span>
-                            <span>Exploratory</span>
-                          </div>
-                          <input 
-                            type="range" min="0" max="100" value={creativity} onChange={(e) => setCreativity(e.target.value)}
-                            className="w-full h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500" 
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="px-4 py-2 bg-[#1a1a1a] border-t border-[#333] flex justify-between items-center text-xs text-gray-500">
-                  {aiMessage ? (
-                    <span className="text-gray-400 truncate max-w-[350px]">{aiMessage}</span>
-                  ) : (
-                    <span></span>
-                  )}
-                  <span className="flex items-center gap-1 shrink-0 ml-4">
-                    <span className={`w-1.5 h-1.5 rounded-full ${aiApiKey ? 'bg-green-400' : 'bg-yellow-500'}`}></span>
-                    {aiApiKey ? `${aiProvider === 'gemini' ? 'Gemini' : 'OpenAI'} connected` : 'Demo mode'}
-                  </span>
-                </div>
-              </div>
-            )}
+          <div
+            ref={viewportRef}
+            className="flex-1 min-h-0 grid place-items-center overflow-hidden"
+            onMouseDown={() => setSelectedId(null)}
+          >
+            <div
+              style={{ transform: `scale(${scale})` }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {workspace === 'UI/UX Design'
+                ? <AppShell {...artboardProps} />
+                : <CampaignArtboard {...artboardProps} />}
+            </div>
           </div>
 
+          {ghost && <GhostDemo onStep={runGhostStep} onEnd={endGhost} />}
+
+          <div className="shrink-0 flex justify-center px-4 pb-4">
+            <AIPanel
+              open={aiOpen}
+              onOpen={() => setAiOpen(true)}
+              onClose={() => setAiOpen(false)}
+              onGenerate={generate}
+              isGenerating={isGenerating}
+              fidelity={fidelity}
+              setFidelity={setFidelity}
+              creativity={creativity}
+              setCreativity={setCreativity}
+              workspace={workspace}
+              otherWorkspace={otherWorkspace}
+              onSwitchWorkspace={() => switchWorkspace(otherWorkspace)}
+              message={message}
+              messageIsError={messageIsError}
+              crossSurface={crossSurface}
+              connected={Boolean(apiKey)}
+              providerName={model || DEFAULT_MODELS[provider]}
+              selectionLabel={visibleSelection ? labelOf(visibleSelection, doc, workspace) : 'no selection'}
+            />
+          </div>
         </main>
 
-        {/* Right Sidebar (Traditional Properties - Collapsible) */}
-        <aside className={`border-l border-[#333333] bg-[#252525] flex flex-col shrink-0 overflow-hidden relative z-20 transition-all duration-300 ease-in-out ${rightPanelOpen ? 'w-[280px]' : 'w-0'}`}>
-          <div className="w-[280px]"> {/* Fixed inner width */}
-            {/* Tabs */}
-            <div className="flex border-b border-[#333333]">
-              <button className="flex-1 py-2 text-sm font-medium text-white border-b-2 border-blue-500 transition-colors">Design</button>
-              <button className="flex-1 py-2 text-sm font-medium text-gray-600 cursor-not-allowed transition-colors" title="Coming Soon">Prototype</button>
-              <button className="flex-1 py-2 text-sm font-medium text-gray-600 cursor-not-allowed transition-colors" title="Coming Soon">Inspect</button>
-            </div>
-
-            <div className="p-4 space-y-6 overflow-y-auto h-[calc(100vh-100px)]">
-              
-              {/* Dynamic Selection Header */}
-              <div className="flex items-center justify-between text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">
-                {selectedElement === 'hero' ? 'Balance Widget' : 
-                 selectedElement === 'card' ? 'Transactions List' : 
-                 selectedElement === 'gdHeadline' ? 'Main Headline' : 
-                 selectedElement === 'gdShape' ? 'Abstract Shape' : 'Custom Element'}
-              </div>
-
-              {/* Alignment & Coordinates */}
-              <section>
-                <div className="flex justify-between mb-4">
-                  <button onClick={() => handleAlign('left')} title="Align Left" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignLeft size={16}/></button>
-                  <button onClick={() => handleAlign('center')} title="Align Center (Horizontal)" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignCenter size={16}/></button>
-                  <button onClick={() => handleAlign('right')} title="Align Right" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignRight size={16}/></button>
-                  <div className="w-px h-4 bg-[#444] self-center"></div>
-                  <button onClick={() => handleAlign('top')} title="Align Top" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignLeft size={16} className="rotate-90"/></button>
-                  <button onClick={() => handleAlign('middle')} title="Align Middle (Vertical)" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignCenter size={16} className="rotate-90"/></button>
-                  <button onClick={() => handleAlign('bottom')} title="Align Bottom" className="p-1 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors"><AlignRight size={16} className="rotate-90"/></button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <NumberInput label="X" value={activeProps.x} onChange={(v) => handlePropChange('x', v)} />
-                  <NumberInput label="Y" value={activeProps.y} onChange={(v) => handlePropChange('y', v)} />
-                  <NumberInput label="W" value={activeProps.w} onChange={(v) => handlePropChange('w', v)} />
-                  <NumberInput label="H" value={activeProps.h} onChange={(v) => handlePropChange('h', v)} />
-                </div>
-              </section>
-
-              <Divider />
-
-              {/* Layout */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-200">Layout</span>
-                  <button className="p-1 hover:bg-[#333] rounded transition-colors"><Layout size={12}/></button>
-                </div>
-                <div className="bg-[#1e1e1e] border border-[#333] rounded p-2 flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Flex</span>
-                  <span className="text-gray-200">
-                    {selectedElement === 'hero' ? 'Column' : 
-                     selectedElement === 'card' ? 'Center' : 'Absolute'}
-                  </span>
-                </div>
-              </section>
-
-              <Divider />
-
-              {/* Fill */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-200">Fill</span>
-                  <button className="text-lg leading-none hover:text-white transition-colors">+</button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label 
-                    className="relative w-6 h-6 rounded border border-[#444] cursor-pointer overflow-hidden shadow-sm shrink-0"
-                    style={{ backgroundColor: `#${String(activeProps.fill).replace('#','')}` }}
-                    title="Click to pick fill color"
-                  >
-                    <input 
-                      type="color" 
-                      value={`#${String(activeProps.fill).replace('#','')}`}
-                      onChange={(e) => handleFillChange(e.target.value)}
-                      className="opacity-0 absolute inset-0 cursor-pointer w-full h-full"
-                    />
-                  </label>
-                  <input 
-                    type="text" 
-                    value={activeProps.fill}
-                    onChange={(e) => handleFillChange(e.target.value)}
-                    className="text-sm text-gray-200 font-mono bg-transparent outline-none w-20 border-b border-transparent focus:border-blue-500"
-                  />
-                  <span className="text-sm text-gray-500 ml-auto">100%</span>
-                </div>
-              </section>
-
-              <Divider />
-
-              {/* Stroke */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-200">Stroke</span>
-                  <button className="text-lg leading-none hover:text-white transition-colors">+</button>
-                </div>
-              </section>
-
-               <Divider />
-
-              {/* Effects */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-200">Effects</span>
-                  <button className="text-lg leading-none hover:text-white transition-colors">+</button>
-                </div>
-              </section>
-            </div>
-          </div>
-        </aside>
-
-      </div>
-    </div>
-  );
-};
-
-// UI Helper Components
-const ToolButton = ({ icon, active, title, onClick, disabled }) => (
-  <button 
-    title={title}
-    onClick={disabled ? undefined : onClick}
-    className={`p-2 rounded-md transition-colors ${
-      disabled ? 'text-gray-600 cursor-not-allowed opacity-40' :
-      active ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-100 hover:bg-[#333333]'
-    }`}
-  >
-    {icon}
-  </button>
-);
-
-const LayerItem = ({ name, type, selected, expanded, onClick, children }) => {
-  const getIcon = () => {
-    switch(type) {
-      case 'frame': return <Layout size={12} />;
-      case 'group': return <Folder size={12} />;
-      case 'text': return <Type size={12} />;
-      case 'image': return <ImageIcon size={12} />;
-      case 'component': return <Layers size={12} className="text-purple-400" />;
-      case 'shape': return <Square size={12} />;
-      default: return <Square size={12} />;
-    }
-  };
-
-  return (
-    <div>
-      <div 
-        onClick={onClick}
-        className={`flex items-center gap-1.5 px-2 py-1.5 rounded cursor-pointer transition-colors ${selected ? 'bg-blue-600/20 text-blue-400' : 'text-gray-300 hover:bg-[#333333]'}`}
-      >
-        <span className="w-3 flex justify-center text-gray-500">
-          {(type === 'frame' || type === 'group') && (
-            <ChevronDown size={12} className={`transform transition-transform ${expanded ? '' : '-rotate-90'}`} />
+        <aside
+          onMouseDown={() => setFocusedPanel('properties')}
+          className={`shrink-0 overflow-hidden transition-[width] duration-200 relative ${
+            rightOpen ? 'w-[264px]' : 'w-0'
+          }`}
+        >
+          {focusedPanel === 'properties' && (
+            <div className="absolute inset-0 border border-accent pointer-events-none z-30" />
           )}
-        </span>
-        {getIcon()}
-        <span className="text-xs font-medium truncate">{name}</span>
+          <PropertiesPanel
+            doc={doc}
+            selectedId={visibleSelection}
+            label={visibleSelection ? labelOf(visibleSelection, doc, workspace) : 'No selection'}
+            geometry={geometry}
+            fill={activeFill}
+            deletable={Boolean(visibleSelection) && !elementsFor(doc, workspace)[visibleSelection]}
+            onAlign={align}
+            onGeometry={setGeometry}
+            onFillScrubStart={begin}
+            onFillChange={(v) => applyFill(v, 'amend')}
+            onFillCommit={() => applyFill(activeFill, 'commit')}
+            onDelete={deleteSelection}
+            onTheme={setTheme}
+            opacity={visibleSelection ? (doc.opacity?.[visibleSelection] ?? 100) : 100}
+            onOpacity={setOpacity}
+            onResetTransform={resetTransform}
+          />
+        </aside>
       </div>
-      {expanded && children && (
-        <div className="ml-4 border-l border-[#444] pl-1 mt-0.5">
-          {children}
-        </div>
-      )}
     </div>
   );
-};
-
-const NumberInput = ({ label, value, onChange }) => (
-  <div className="flex items-center bg-[#1e1e1e] border border-[#333333] rounded hover:border-[#555] focus-within:border-blue-500 transition-colors overflow-hidden">
-    <span className="text-xs text-gray-500 px-2 py-1 select-none w-5 shrink-0 text-center">{label}</span>
-    <input 
-      type="number" 
-      value={value === 'Auto' ? '' : (value ?? '')}
-      placeholder={value === 'Auto' ? 'Auto' : ''}
-      onChange={(e) => onChange && onChange(parseInt(e.target.value, 10) || 0)}
-      className="bg-transparent w-full text-sm text-gray-200 outline-none py-1 pr-1 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-    />
-  </div>
-);
-
-const Divider = () => <div className="h-px w-full bg-[#333333]"></div>;
-
-export default App;
+}
